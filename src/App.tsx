@@ -13,7 +13,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  const USINAS_VERSION = 'v126_barra_do_arara';
+  const USINAS_VERSION = 'v128_caracara_ufvs';
 
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
