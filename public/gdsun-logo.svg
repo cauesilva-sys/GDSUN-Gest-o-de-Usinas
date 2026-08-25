@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 280" className="w-auto h-full">
+  <defs>
+    <linearGradient id="gdsun_gold_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A"/>
+      <stop offset="40%" stop-color="#FACC15"/>
+      <stop offset="100%" stop-color="#EAB308"/>
+    </linearGradient>
+  </defs>
+  <!-- Solar Panel Trapezoid Slates -->
+  <g transform="translate(15, 10)">
+    <!-- Slate 1 (top) -->
+    <polygon points="75,18 190,18 222,46 70,46" fill="url(#gdsun_gold_grad)"/>
+    <!-- Slate 2 -->
+    <polygon points="70,52 222,52 248,78 65,78" fill="url(#gdsun_gold_grad)"/>
+    <!-- Slate 3 -->
+    <polygon points="65,84 248,84 272,108 60,108" fill="url(#gdsun_gold_grad)"/>
+    <!-- Slate 4 (bottom) -->
+    <polygon points="60,114 272,114 294,138 55,138" fill="url(#gdsun_gold_grad)"/>
+  </g>
+  <!-- Brand Text GDSUN -->
+  <g transform="translate(5, 230)">
+    <text x="0" y="0" font-family="'Arial Black', 'Trebuchet MS', 'Segoe UI', sans-serif" font-weight="900" font-size="82" fill="#00A3E5" letter-spacing="-2">GD</text>
+    <text x="128" y="0" font-family="'Arial Black', 'Trebuchet MS', 'Segoe UI', sans-serif" font-weight="900" font-size="82" fill="#005CA9" letter-spacing="-2">SUN</text>
+  </g>
+</svg>

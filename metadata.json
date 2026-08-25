@@ -1,0 +1,6 @@
+{
+  "name": "Google Sheets Auto Sync",
+  "description": "Visualizador e sincronizador automático de dados do Google Sheets e planilhas",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
