@@ -1676,7 +1676,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 284 8080',
     whatsappDisCo: '',
     endereco: 'RO BR 242 20022 RURAL CEP: 47850-000 LUIS EDUARDO MAGALHAES/BA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/LNEzvNWTHrce4jo9A',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1697,7 +1697,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 284 8080',
     whatsappDisCo: '',
     endereco: 'RO BR 242 20022 RURAL CEP: 47850-000 LUIS EDUARDO MAGALHAES/BA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/LNEzvNWTHrce4jo9A',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1718,7 +1718,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 284 8080',
     whatsappDisCo: '',
     endereco: 'RO BR 242 20022 RURAL CEP: 47850-000 LUIS EDUARDO MAGALHAES/BA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/LNEzvNWTHrce4jo9A',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1739,7 +1739,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 701 0103',
     whatsappDisCo: '',
     endereco: 'EST MUNICIPAL PARA STA RITA DO OESTE, 0 - ESTRADA MUNICIPAL SAT-0 SANTA ALBERTINA - SP - CEP 15750-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/zYVp15ZFocJFUSTz9',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1760,7 +1760,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 701 0103',
     whatsappDisCo: '',
     endereco: 'EST MUNICIPAL PARA STA RITA DO OESTE, 0 - ESTRADA MUNICIPAL SAT-020 SANTA ALBERTINA - SP - CEP 15750-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/zYVp15ZFocJFUSTz9',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1781,7 +1781,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 701 0103',
     whatsappDisCo: '',
     endereco: 'EST MUNICIPAL PARA STA RITA DO OESTE, 0 - ESTRADA MUNICIPAL SAT-0 SANTA ALBERTINA - SP - CEP 15750-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/zYVp15ZFocJFUSTz9',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1907,7 +1907,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 285 7887',
     whatsappDisCo: '',
     endereco: 'Rodovia CE 1630 MARGEM DA CE 163 LOC CAMPESTRE TRAIRI CAMPESTRE 62690-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/ay6m21e6yowiDLqr9',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1928,7 +1928,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 285 7887',
     whatsappDisCo: '',
     endereco: 'Rodovia CE 1630 MARGEM DA CE 163 LOC CAMPESTRE TRAIRI CAMPESTRE 62690-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/ay6m21e6yowiDLqr9',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1949,7 +1949,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 285 7887',
     whatsappDisCo: '',
     endereco: 'Rodovia CE 1630 MARGEM DA CE 163 LOC CAMPESTRE TRAIRI CAMPESTRE 62690-001',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/ay6m21e6yowiDLqr9',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1970,7 +1970,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 285 7887',
     whatsappDisCo: '',
     endereco: 'Rodovia CE 1630 MARGEM DA CE 163 LOC CAMPESTRE TRAIRI CAMPESTRE 62690-002',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/ay6m21e6yowiDLqr9',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -1991,7 +1991,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 091 0196',
     whatsappDisCo: '',
     endereco: 'RD BR 010 , S/N , BR 010 KM 51 ZONA RURAL CEP: 68675-000 MAE DO RIO - MAE DO RIO - PA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/JYojyEqPxVG7DYYW7',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2012,7 +2012,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 091 0196',
     whatsappDisCo: '',
     endereco: 'RD BR 010 , S/N , BR 010 KM 51 ZONA RURAL CEP: 68675-000 MAE DO RIO - MAE DO RIO - PA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/JYojyEqPxVG7DYYW7',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2033,7 +2033,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 091 0196',
     whatsappDisCo: '',
     endereco: 'RD BR 010 , S/N , BR 010 KM 51 ZONA RURAL CEP: 68675-000 MAE DO RIO - MAE DO RIO - PA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/JYojyEqPxVG7DYYW7',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2054,7 +2054,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 091 0196',
     whatsappDisCo: '',
     endereco: 'RD BR 010 , S/N , BR 010 KM 51 ZONA RURAL CEP: 68675-000 MAE DO RIO - MAE DO RIO - PA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/JYojyEqPxVG7DYYW7',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2075,7 +2075,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 281 2236',
     whatsappDisCo: '',
     endereco: 'ENDEREÇO:SI PIRINEUS 1 --A RURAL/SAO BENTO DO UNA RURAL CEP 55370-000 SAO BENTO DO UNA PE',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/kFgT8WJs98HzSfzx8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2096,7 +2096,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 281 2236',
     whatsappDisCo: '',
     endereco: 'ENDEREÇO:SI PIRINEUS 1 --B RURAL/SAO BENTO DO UNA RURAL CEP 55370-000 SAO BENTO DO UNA PE',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/kFgT8WJs98HzSfzx8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2117,7 +2117,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 281 2236',
     whatsappDisCo: '',
     endereco: 'ENDEREÇO:SI PIRINEUS 1 --C RURAL/SAO BENTO DO UNA RURAL CEP 55370-000 SAO BENTO DO UNA PE',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/kFgT8WJs98HzSfzx8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2138,7 +2138,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 281 2236',
     whatsappDisCo: '',
     endereco: 'ENDEREÇO:SI PIRINEUS 1 --D RURAL/SAO BENTO DO UNA RURAL CEP 55370-000 SAO BENTO DO UNA PE',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/kFgT8WJs98HzSfzx8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2159,7 +2159,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'ANTE VARZEA DA PALMA 999999 US 1, AREA RURAL, 39260-000 VARZEA DA PALMA, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/hgKy4akaK8uY8zAN7',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2180,7 +2180,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV ANDROMEDA I 999999 FZ, AREA RURAL, 39260-000 VARZEA DA PALMA, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/shtFHTVK8HoELvp59',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2201,7 +2201,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV ANDROMEDA I 999999 FZ, AREA RURAL, 39260-000 VARZEA DA PALMA, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/shtFHTVK8HoELvp59',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2222,7 +2222,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV ANDROMEDA I 999999 FZ, AREA RURAL, 39260-000 VARZEA DA PALMA, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/shtFHTVK8HoELvp59',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2243,7 +2243,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV ANDROMEDA I 999999 FZ, AREA RURAL, 39260-000 VARZEA DA PALMA, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/shtFHTVK8HoELvp59',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2264,7 +2264,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV ANDROMEDA I 999999 FZ, AREA RURAL, 39260-000 VARZEA DA PALMA, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/shtFHTVK8HoELvp59',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2285,7 +2285,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV BURITIZEIRO I 99999 FZ, AREA RURAL, 39280-000 BURITIZEIRO, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/b4A2dQtAhR3cCS1Z6',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2306,7 +2306,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV BURITIZEIRO I 99999 FZ, AREA RURAL, 39280-000 BURITIZEIRO, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/b4A2dQtAhR3cCS1Z6',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2327,7 +2327,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV BURITIZEIRO I 99999 FZ, AREA RURAL, 39280-000 BURITIZEIRO, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/b4A2dQtAhR3cCS1Z6',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2348,7 +2348,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV BURITIZEIRO I 99999 FZ, AREA RURAL, 39280-000 BURITIZEIRO, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/b4A2dQtAhR3cCS1Z6',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2369,7 +2369,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 727 7520',
     whatsappDisCo: '',
     endereco: 'UFV BURITIZEIRO I 99999 FZ, AREA RURAL, 39280-000 BURITIZEIRO, MG',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/b4A2dQtAhR3cCS1Z6',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2390,7 +2390,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 28 50 196',
     whatsappDisCo: '',
     endereco: 'ESTRADA MIRAIMA 0 - DISTRITO DE CARARA SOBRAL CE. CEP: 62112-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/widuSbzJTqYpPJkq8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2411,7 +2411,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 28 50 196',
     whatsappDisCo: '',
     endereco: 'ESTRADA MIRAIMA 0 - DISTRITO DE CARARA SOBRAL CE. CEP: 62112-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/widuSbzJTqYpPJkq8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2432,7 +2432,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 28 50 196',
     whatsappDisCo: '',
     endereco: 'ESTRADA MIRAIMA 0 - DISTRITO DE CARARA SOBRAL CE. CEP: 62112-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/widuSbzJTqYpPJkq8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2453,7 +2453,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 285 7887',
     whatsappDisCo: '',
     endereco: 'Sitio PACHECOLANDIA 05 MAL COZINHADO HORIZONTE CE CEP: 62898-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/udavWRvBJRxrNVqc7',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2474,7 +2474,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 285 7887',
     whatsappDisCo: '',
     endereco: 'SÍTIO PACHECOLANDIA, N° 6, MAL COZINHADO, HORIZONTE, CE',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/udavWRvBJRxrNVqc7',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2495,7 +2495,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 284 8080',
     whatsappDisCo: '',
     endereco: 'RUA 11 QDA N 24 100 M1 021507679 M2 861908739 ODS 352848 VILA SAO JOAQUIM/SOBRADIN MAGALHAES - BA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/8epaJ4TwSWNJHw88A',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2516,7 +2516,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 284 8080',
     whatsappDisCo: '',
     endereco: 'RUA 11 QDA N 24 100 M1 021507679 M2 861908739 ODS 352848 VILA SAO JOAQUIM/SOBRADIN MAGALHAES - BA',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/8epaJ4TwSWNJHw88A',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2537,7 +2537,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 701 0102',
     whatsappDisCo: '',
     endereco: 'EST VICINAL PANORAMA A OURO VERDE, 0 Bairro: RECANTO MATIAS Município: PANORAMA - SP CEP: 17980-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/rBNYTpJgv8GVrZrc8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2558,7 +2558,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 701 0102',
     whatsappDisCo: '',
     endereco: 'EST VICINAL PANORAMA A OURO VERDE, 0 Complemento: A Bairro: RECANTO MATIAS Município: PANORAMA - SP CEP: 17980-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/rBNYTpJgv8GVrZrc8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
@@ -2579,7 +2579,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     contatoDisCo: '0800 701 0102',
     whatsappDisCo: '',
     endereco: 'EST VICINAL PANORAMA A OURO VERDE, 0 Complemento: B Bairro: RECANTO MATIAS Município: PANORAMA - SP CEP: 17980-000',
-    googleMapsUrl: '',
+    googleMapsUrl: 'https://maps.app.goo.gl/rBNYTpJgv8GVrZrc8',
     latitude: '',
     longitude: '',
     statusDelfos: 'Operacional'
