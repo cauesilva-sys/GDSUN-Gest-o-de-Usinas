@@ -82,6 +82,11 @@ export default function App() {
     }
   });
 
+  // Ensure title is always set
+  useEffect(() => {
+    document.title = 'GDSUN Gestão de Usinas';
+  }, []);
+
   // Save to localStorage whenever data changes
   useEffect(() => {
     localStorage.setItem('gdsun_usinas', JSON.stringify(usinas));

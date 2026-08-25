@@ -1,6 +1,6 @@
 {
-  "name": "Google Sheets Auto Sync",
-  "description": "Visualizador e sincronizador automático de dados do Google Sheets e planilhas",
+  "name": "GDSUN Gestão de Usinas",
+  "description": "Painel de gestão operacional de usinas solares, concessionárias locais e provedores de internet GDSUN",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
