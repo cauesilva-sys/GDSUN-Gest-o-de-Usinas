@@ -13,7 +13,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  const USINAS_VERSION = 'v130_google_maps_urls_updated';
+  const USINAS_VERSION = 'v131_inst_client_code_updates';
 
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
