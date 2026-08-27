@@ -115,6 +115,34 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const formatFichaUsina = (u: UsinaConcessionaria): string => {
+    const lines = [
+      `USINA: ${u.usina}${(u.siglaNova || u.siglaAntiga) ? ` (${u.siglaNova || u.siglaAntiga})` : ''} - ${u.uf}`,
+      `CONCESSIONÁRIA: ${u.concessionaria || 'Não informada'}`,
+      '',
+      `DADOS CADASTRAIS`,
+      `INSTALAÇÃO UG: ${u.codigoInstalacaoUG || 'N/A'}`,
+      `MEDIDOR: ${u.medidor || 'N/A'}`,
+      `CÓD. CLIENTE: ${u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A'}`,
+      '',
+      `RAZÃO SOCIAL & CNPJ`,
+      `Razão Social: ${u.razaoSocial || 'Pendente'}`,
+      `CNPJ: ${u.cnpj || 'Pendente'}`,
+      '',
+      `AGENTE DE RELACIONAMENTO / CONTATOS`,
+      `Contato: ${u.contatoDisCo || 'N/A'}${u.whatsappDisCo ? `\nWhatsApp DisCo: ${u.whatsappDisCo}` : ''}`,
+      '',
+      `ENDEREÇO DA USINA`,
+      `Endereço: ${u.endereco || 'Endereço não informado'}`
+    ];
+
+    if (u.googleMapsUrl) {
+      lines.push('', `LOCALIZAÇÃO GOOGLE MAPS`, `${u.googleMapsUrl}`);
+    }
+
+    return lines.join('\n');
+  };
+
   return (
     <div className="space-y-6">
       
@@ -252,7 +280,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                 <tr>
                   <th className="py-3.5 px-4">Usina / UF</th>
                   <th className="py-3.5 px-4">Concessionária (DisCo)</th>
-                  <th className="py-3.5 px-4">Identificação (Instalação, Medidor, Cód. Cliente)</th>
+                  <th className="py-3.5 px-4">Dados Cadastrais (Instalação, Medidor, Cód. Cliente)</th>
                   <th className="py-3.5 px-4">Agente de Relacionamento / Contato</th>
                   <th className="py-3.5 px-4">Razão Social & CNPJ</th>
                   <th className="py-3.5 px-4">Endereço da Usina</th>
@@ -275,6 +303,23 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                           <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
                             {u.uf}
                           </span>
+                          <button
+                            onClick={() => copyToClipboard(formatFichaUsina(u), `table-card-${u.id}`)}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md border border-slate-200 transition-colors"
+                            title="Copiar ficha completa da usina"
+                          >
+                            {copiedId === `table-card-${u.id}` ? (
+                              <>
+                                <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                <span className="text-emerald-700 font-bold">Copiado</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-2.5 h-2.5 text-slate-500" />
+                                <span>Copiar Ficha</span>
+                              </>
+                            )}
+                          </button>
                         </div>
                       </td>
 
@@ -286,7 +331,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Identificação DisCo (Instalação, Medidor, Cód. Cliente) */}
+                      {/* Dados Cadastrais (Instalação, Medidor, Cód. Cliente) */}
                       <td className="py-4 px-4 align-top space-y-1">
                         <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 w-fit">
                           <span className="text-[10px] text-slate-500 font-sans uppercase font-bold">Instalação UG:</span>
@@ -390,42 +435,29 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
               >
                 <div>
                   {/* Card Header */}
-                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-extrabold px-2 py-0.5 rounded-md">
-                          {u.uf}
-                        </span>
-                        <h3 className="font-extrabold text-slate-900 text-sm group-hover:text-amber-700 transition-colors">
-                          {u.usina}{(u.siglaNova || u.siglaAntiga) ? ` (${u.siglaNova || u.siglaAntiga})` : ''}
-                        </h3>
-                      </div>
-                      <p className="text-xs text-slate-600 flex items-center gap-1 mt-1 font-semibold">
-                        <Building2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>{u.concessionaria}</span>
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="bg-slate-100 text-slate-700 text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border border-slate-200">
-                        UG: {u.codigoInstalacaoUG || 'N/A'}
+                  <div className="border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-extrabold px-2 py-0.5 rounded-md">
+                        {u.uf}
                       </span>
-                      {u.medidor && (
-                        <span className="bg-amber-100 text-amber-900 text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-md border border-amber-300">
-                          Medidor: {u.medidor}
-                        </span>
-                      )}
+                      <h3 className="font-extrabold text-slate-900 text-sm group-hover:text-amber-700 transition-colors">
+                        {u.usina}{(u.siglaNova || u.siglaAntiga) ? ` (${u.siglaNova || u.siglaAntiga})` : ''}
+                      </h3>
                     </div>
+                    <p className="text-xs text-slate-600 flex items-center gap-1 mt-1 font-semibold">
+                      <Building2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>{u.concessionaria}</span>
+                    </p>
                   </div>
 
                   {/* Body Fields */}
                   <div className="pt-3 space-y-3 text-xs">
                     
-                    {/* Identificação DisCo */}
+                    {/* Dados Cadastrais */}
                     <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 space-y-1">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
                         <Hash className="w-3 h-3 text-amber-600" />
-                        <span>Identificação DisCo</span>
+                        <span>Dados Cadastrais</span>
                       </div>
                       <div className="grid grid-cols-1 gap-1 text-[11px] font-mono pt-0.5">
                         <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-200/80">
@@ -521,13 +553,8 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   )}
 
                   <button
-                    onClick={() =>
-                      copyToClipboard(
-                        `Usina: ${u.usina}\nDisCo: ${u.concessionaria}\nInstalação UG: ${u.codigoInstalacaoUG}\nRazão Social: ${u.razaoSocial}\nCNPJ: ${u.cnpj}\nContato: ${u.contatoDisCo}\nEndereço: ${u.endereco}`,
-                        `card-${u.id}`
-                      )
-                    }
-                    className="flex items-center gap-1 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors font-medium"
+                    onClick={() => copyToClipboard(formatFichaUsina(u), `card-${u.id}`)}
+                    className="flex items-center gap-1 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors font-medium cursor-pointer active:scale-95"
                   >
                     {copiedId === `card-${u.id}` ? (
                       <>
