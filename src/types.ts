@@ -54,4 +54,4 @@ export interface SyncConfig {
   errorMessage?: string;
 }
 
-export type ActiveTab = 'concessionarias' | 'provedores' | 'sync' | 'resumo';
+export type ActiveTab = 'concessionarias' | 'provedores' | 'resumo';

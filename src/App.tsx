@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { ConcessionariasView } from './components/ConcessionariasView';
 import { ProvedoresView } from './components/ProvedoresView';
-import { SyncConfigModal } from './components/SyncConfigModal';
 import { ResumoMetricsView } from './components/ResumoMetricsView';
 import { initialUsinas, initialProvedores } from './data/initialData';
 import { UsinaConcessionaria, ProvedorInternet, SyncConfig, ActiveTab } from './types';
@@ -13,7 +12,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  const USINAS_VERSION = 'v131_inst_client_code_updates';
+  const USINAS_VERSION = 'v132_apodi_cnpj_update';
 
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
@@ -31,7 +30,7 @@ export default function App() {
     }
   });
 
-  const PROVEDORES_VERSION = 'v127_cnpjs_provedores';
+  const PROVEDORES_VERSION = 'v128_apodi_razao_cnpj_update';
 
   const [provedores, setProvedores] = useState<ProvedorInternet[]>(() => {
     try {
@@ -242,16 +241,6 @@ export default function App() {
 
         {activeTab === 'resumo' && (
           <ResumoMetricsView usinas={usinas} provedores={provedores} />
-        )}
-
-        {activeTab === 'sync' && (
-          <SyncConfigModal
-            syncConfig={syncConfig}
-            setSyncConfig={setSyncConfig}
-            onSyncNow={performSyncNow}
-            onImportCsvText={handleImportCsvText}
-            onResetToDefaults={handleResetToDefaults}
-          />
         )}
       </main>
 

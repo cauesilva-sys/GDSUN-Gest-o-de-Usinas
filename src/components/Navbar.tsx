@@ -4,7 +4,6 @@ import { GdsunLogo } from './GdsunLogo';
 import { 
   Zap,
   Wifi, 
-  Settings, 
   BarChart3, 
   Search, 
   Building2
@@ -126,18 +125,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <BarChart3 className="w-4 h-4" />
               <span>Resumo Operacional</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('sync')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                activeTab === 'sync'
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-              <span>Auto-Sync Config</span>
             </button>
           </nav>
 
