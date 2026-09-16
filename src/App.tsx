@@ -6,41 +6,90 @@ import { ResumoMetricsView } from './components/ResumoMetricsView';
 import { initialUsinas, initialProvedores } from './data/initialData';
 import { UsinaConcessionaria, ProvedorInternet, SyncConfig, ActiveTab } from './types';
 import { parseUsinasCsv, parseProvedoresCsv, formatGoogleSheetsExportUrl } from './utils/csvParser';
+import { getProvedorMasterInfo } from './utils/provedoresMasterData';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('concessionarias');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  const USINAS_VERSION = 'v132_apodi_cnpj_update';
+  // Data storage versioning (upgraded to v4 for Apodi CNPJ 34.366.520/0029-35 and Ibotirama ATInfo only)
+  const USINAS_VERSION = 'v136_gdsun_data_v4_apodi_ibotirama';
+  const PROVEDORES_VERSION = 'v136_gdsun_data_v4_apodi_ibotirama';
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_v4';
+  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v4';
+
+  // Clean legacy cache from previous versions if present
+  useEffect(() => {
+    try {
+      localStorage.removeItem('gdsun_usinas');
+      localStorage.removeItem('gdsun_provedores');
+      localStorage.removeItem('gdsun_usinas_version');
+      localStorage.removeItem('gdsun_provedores_version');
+      localStorage.removeItem('gdsun_usinas_v2');
+      localStorage.removeItem('gdsun_provedores_v2');
+      localStorage.removeItem('gdsun_usinas_version_v2');
+      localStorage.removeItem('gdsun_provedores_version_v2');
+      localStorage.removeItem('gdsun_usinas_v3');
+      localStorage.removeItem('gdsun_provedores_v3');
+      localStorage.removeItem('gdsun_usinas_version_v3');
+      localStorage.removeItem('gdsun_provedores_version_v3');
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_usinas_version');
-      const saved = localStorage.getItem('gdsun_usinas');
+      const savedVersion = localStorage.getItem('gdsun_usinas_version_v4');
+      const saved = localStorage.getItem(USINAS_STORAGE_KEY);
       if (saved && savedVersion === USINAS_VERSION) {
         return JSON.parse(saved);
       }
-      localStorage.setItem('gdsun_usinas_version', USINAS_VERSION);
-      localStorage.setItem('gdsun_usinas', JSON.stringify(initialUsinas));
+      localStorage.setItem('gdsun_usinas_version_v4', USINAS_VERSION);
+      localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(initialUsinas));
       return initialUsinas;
     } catch {
       return initialUsinas;
     }
   });
 
-  const PROVEDORES_VERSION = 'v128_apodi_razao_cnpj_update';
-
   const [provedores, setProvedores] = useState<ProvedorInternet[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_provedores_version');
-      const saved = localStorage.getItem('gdsun_provedores');
+      const savedVersion = localStorage.getItem('gdsun_provedores_version_v4');
+      const saved = localStorage.getItem(PROVEDORES_STORAGE_KEY);
       if (saved && savedVersion === PROVEDORES_VERSION) {
-        return JSON.parse(saved);
+        const list = JSON.parse(saved) as ProvedorInternet[];
+        return list
+          .filter(
+            (p) =>
+              !(
+                p.usinaNome.toLowerCase().includes('ibotirama') &&
+                p.provedor.toLowerCase().includes('embratel')
+              )
+          )
+          .map((p) => {
+            const master = getProvedorMasterInfo(p.usinaNome);
+            const isApodi = p.usinaNome.toLowerCase().includes('apodi');
+            return {
+              ...p,
+              razaoSocial: isApodi
+                ? 'GDPAR SN PARTICIPACOES EM PROJETOS SOLARES S/A'
+                : p.razaoSocial && p.razaoSocial !== 'Pendente'
+                ? p.razaoSocial
+                : master.razaoSocial,
+              cnpj: isApodi
+                ? '34.366.520/0029-35'
+                : p.cnpj && p.cnpj !== 'Pendente'
+                ? p.cnpj
+                : master.cnpj,
+              tipoConexao: p.tipoConexao || master.tipoConexao || 'Fibra',
+            };
+          });
       }
-      localStorage.setItem('gdsun_provedores_version', PROVEDORES_VERSION);
-      localStorage.setItem('gdsun_provedores', JSON.stringify(initialProvedores));
+      localStorage.setItem('gdsun_provedores_version_v4', PROVEDORES_VERSION);
+      localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(initialProvedores));
       return initialProvedores;
     } catch {
       return initialProvedores;
@@ -88,11 +137,11 @@ export default function App() {
 
   // Save to localStorage whenever data changes
   useEffect(() => {
-    localStorage.setItem('gdsun_usinas', JSON.stringify(usinas));
+    localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(usinas));
   }, [usinas]);
 
   useEffect(() => {
-    localStorage.setItem('gdsun_provedores', JSON.stringify(provedores));
+    localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(provedores));
   }, [provedores]);
 
   useEffect(() => {
@@ -135,10 +184,18 @@ export default function App() {
         if (res.ok) {
           const text = await res.text();
           if (!text.includes('<!DOCTYPE html>') && !text.includes('<html')) {
-            const parsed = parseProvedoresCsv(text);
-            if (parsed.length > 0) {
-              setProvedores(parsed);
-            }
+            setProvedores((prevProvedores) => {
+              const parsed = parseProvedoresCsv(text, prevProvedores, usinas);
+              if (parsed.length > 0) {
+                try {
+                  localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(parsed));
+                } catch {
+                  // ignore
+                }
+                return parsed;
+              }
+              return prevProvedores;
+            });
           }
         }
       }
@@ -183,12 +240,25 @@ export default function App() {
       const parsed = parseUsinasCsv(text);
       if (parsed.length > 0) {
         setUsinas(parsed);
+        try {
+          localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(parsed));
+        } catch {
+          // ignore
+        }
       }
     } else {
-      const parsed = parseProvedoresCsv(text);
-      if (parsed.length > 0) {
-        setProvedores(parsed);
-      }
+      setProvedores((prev) => {
+        const parsed = parseProvedoresCsv(text, prev, usinas);
+        if (parsed.length > 0) {
+          try {
+            localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(parsed));
+          } catch {
+            // ignore
+          }
+          return parsed;
+        }
+        return prev;
+      });
     }
   };
 
@@ -196,6 +266,8 @@ export default function App() {
   const handleResetToDefaults = () => {
     setUsinas(initialUsinas);
     setProvedores(initialProvedores);
+    localStorage.removeItem(USINAS_STORAGE_KEY);
+    localStorage.removeItem(PROVEDORES_STORAGE_KEY);
     localStorage.removeItem('gdsun_usinas');
     localStorage.removeItem('gdsun_provedores');
   };

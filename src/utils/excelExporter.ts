@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { UsinaConcessionaria, ProvedorInternet } from '../types';
 import { findAddressForProvedorUsina } from './addressMatcher';
+import { getProvedorMasterInfo } from './provedoresMasterData';
 
 export function exportUsinasToExcel(usinas: UsinaConcessionaria[], filename = 'Concessionarias_e_Usinas.xlsx') {
   const data = usinas.map((u) => ({
@@ -50,14 +51,24 @@ export function exportUsinasToExcel(usinas: UsinaConcessionaria[], filename = 'C
 export function exportProvedoresToExcel(provedores: ProvedorInternet[], usinas: UsinaConcessionaria[], filename = 'Provedores_de_Internet.xlsx') {
   const data = provedores.map((p) => {
     const addr = findAddressForProvedorUsina(p.usinaNome, usinas);
+    const masterInfo = getProvedorMasterInfo(p.usinaNome, usinas);
+    const resolvedRazaoSocial =
+      p.razaoSocial && p.razaoSocial.trim() !== '' && p.razaoSocial.toLowerCase() !== 'pendente'
+        ? p.razaoSocial
+        : masterInfo.razaoSocial || 'Pendente';
+    const resolvedCnpj =
+      p.cnpj && p.cnpj.trim() !== '' && p.cnpj.toLowerCase() !== 'pendente'
+        ? p.cnpj
+        : masterInfo.cnpj || 'Pendente';
+
     return {
       'ID': p.id,
       'Usina': p.usinaNome,
-      'Razão Social': p.razaoSocial,
-      'CNPJ': p.cnpj,
+      'Razão Social': resolvedRazaoSocial,
+      'CNPJ': resolvedCnpj,
       'Provedor': p.provedor,
       'Contato Provedor': p.contatoProvedor,
-      'Tipo de Conexão': p.tipoConexao,
+      'Tipo de Conexão': p.tipoConexao || masterInfo.tipoConexao || 'Fibra',
       'Contrato': p.contrato || '',
       'Dia Vencimento': p.vencimento,
       'Valor Mensal': p.valorMensal,

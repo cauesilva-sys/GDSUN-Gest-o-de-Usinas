@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ProvedorInternet, UsinaConcessionaria } from '../types';
 import { findAddressForProvedorUsina } from '../utils/addressMatcher';
+import { getProvedorMasterInfo } from '../utils/provedoresMasterData';
 import { parseContacts } from '../utils/whatsapp';
 import { exportProvedoresToExcel } from '../utils/excelExporter';
 import { 
@@ -75,18 +76,52 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
     return ['TODOS', ...Array.from(set).sort()];
   }, [provedores]);
 
-  // Enrich provedores with auto-matched addresses from Informações Gerais
+  // Enrich provedores with auto-matched addresses and verified CNPJ / Razão Social
   const enrichedProvedores = useMemo(() => {
-    return provedores.map((p) => {
-      const match = findAddressForProvedorUsina(p.usinaNome, usinas);
-      return {
-        ...p,
-        enderecoUsina: match.endereco,
-        ufUsina: match.uf,
-        googleMapsUrl: match.googleMapsUrl,
-        usinaMatchedName: match.usinaMatchedName
-      };
-    });
+    return provedores
+      .filter((p) => {
+        // Excluir Embratel de Ibotirama conforme solicitado (manter apenas ATInfo Telecom)
+        if (
+          p.usinaNome.toLowerCase().includes('ibotirama') &&
+          p.provedor.toLowerCase().includes('embratel')
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((p) => {
+        const match = findAddressForProvedorUsina(p.usinaNome, usinas);
+        const masterInfo = getProvedorMasterInfo(p.usinaNome, usinas);
+
+        const isApodi = p.usinaNome.toLowerCase().includes('apodi');
+
+        const resolvedRazaoSocial =
+          isApodi
+            ? 'GDPAR SN PARTICIPACOES EM PROJETOS SOLARES S/A'
+            : p.razaoSocial && p.razaoSocial.trim() !== '' && p.razaoSocial.toLowerCase() !== 'pendente'
+            ? p.razaoSocial
+            : masterInfo.razaoSocial || '';
+
+        const resolvedCnpj =
+          isApodi
+            ? '34.366.520/0029-35'
+            : p.cnpj && p.cnpj.trim() !== '' && p.cnpj.toLowerCase() !== 'pendente'
+            ? p.cnpj
+            : masterInfo.cnpj || '';
+
+        const resolvedTipoConexao = p.tipoConexao || masterInfo.tipoConexao || 'Fibra';
+
+        return {
+          ...p,
+          razaoSocial: resolvedRazaoSocial || 'Pendente',
+          cnpj: resolvedCnpj || 'Pendente',
+          tipoConexao: resolvedTipoConexao,
+          enderecoUsina: match.endereco,
+          ufUsina: match.uf,
+          googleMapsUrl: match.googleMapsUrl,
+          usinaMatchedName: match.usinaMatchedName
+        };
+      });
   }, [provedores, usinas]);
 
   // Filtered provedores

@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import { UsinaConcessionaria, ProvedorInternet } from '../types';
+import { getProvedorMasterInfo } from './provedoresMasterData';
 
 /**
  * Normalizes object key strings from CSV headers
@@ -106,7 +107,11 @@ export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
 /**
  * Parses raw CSV content for Provedores de Internet
  */
-export function parseProvedoresCsv(csvText: string): ProvedorInternet[] {
+export function parseProvedoresCsv(
+  csvText: string,
+  existingProvedores?: ProvedorInternet[],
+  usinasList?: UsinaConcessionaria[]
+): ProvedorInternet[] {
   const result = Papa.parse<Record<string, string>>(csvText, {
     header: true,
     skipEmptyLines: true,
@@ -123,18 +128,88 @@ export function parseProvedoresCsv(csvText: string): ProvedorInternet[] {
     const usinaNome = normalizedRow['usina'] || normalizedRow['nomeusina'] || '';
     if (!usinaNome) return;
 
+    const provedorNomeCandidate =
+      normalizedRow['provedor'] ||
+      normalizedRow['nomeprovedor'] ||
+      '';
+
+    // Regra solicitada: Em Ibotirama, manter apenas ATInfo Telecom (excluir o da imagem: Embratel)
+    if (
+      usinaNome.toLowerCase().includes('ibotirama') &&
+      provedorNomeCandidate.toLowerCase().includes('embratel')
+    ) {
+      return; // Ignora o registro da Embratel de Ibotirama
+    }
+
+    // Fallback info from Master Dictionary or Usinas Gerais
+    const masterInfo = getProvedorMasterInfo(usinaNome, usinasList);
+
+    // Existing fallback if updating in place
+    const existing = existingProvedores?.find(
+      (ep) => ep.usinaNome.toLowerCase() === usinaNome.toLowerCase() || ep.id === `p-${index + 1}`
+    );
+
+    // Razão Social resolution
+    let razaoSocial =
+      normalizedRow['razaosocial'] ||
+      normalizedRow['razaosocialcliente'] ||
+      normalizedRow['razao'] ||
+      '';
+    if (!razaoSocial || razaoSocial.toLowerCase() === 'pendente' || usinaNome.toLowerCase().includes('apodi')) {
+      razaoSocial = masterInfo.razaoSocial || existing?.razaoSocial || '';
+    }
+
+    // CNPJ resolution
+    let cnpj =
+      normalizedRow['cnpj'] ||
+      normalizedRow['cnpjcliente'] ||
+      normalizedRow['cnpjempresa'] ||
+      '';
+    if (!cnpj || cnpj.toLowerCase() === 'pendente' || usinaNome.toLowerCase().includes('apodi')) {
+      cnpj = masterInfo.cnpj || existing?.cnpj || '';
+    }
+
+    // Fallback: check if login field contains a valid 14-digit CNPJ
+    if ((!cnpj || cnpj === 'Pendente') && normalizedRow['login']) {
+      const cleanDigits = normalizedRow['login'].replace(/\D/g, '');
+      if (cleanDigits.length === 14) {
+        cnpj = cleanDigits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+      }
+    }
+
+    const provedorNome =
+      normalizedRow['provedor'] ||
+      normalizedRow['nomeprovedor'] ||
+      masterInfo.provedorPadrao ||
+      existing?.provedor ||
+      '';
+
+    const contato =
+      normalizedRow['contatoprovedor'] ||
+      normalizedRow['contato'] ||
+      normalizedRow['telefone'] ||
+      existing?.contatoProvedor ||
+      '-';
+
+    const tipoConexao =
+      normalizedRow['tipo'] ||
+      normalizedRow['tipoconexao'] ||
+      masterInfo.tipoConexao ||
+      existing?.tipoConexao ||
+      'Fibra';
+
     parsedProvedores.push({
-      id: `p-imported-${index}`,
+      id: existing?.id || `p-${index + 1}`,
       usinaNome,
-      razaoSocial: normalizedRow['razaosocial'] || '',
-      cnpj: normalizedRow['cnpj'] || '',
-      provedor: normalizedRow['provedor'] || normalizedRow['nomeprovedor'] || '',
-      contatoProvedor: normalizedRow['contatoprovedor'] || normalizedRow['contato'] || normalizedRow['telefone'] || '',
-      tipoConexao: normalizedRow['tipo'] || normalizedRow['tipoconexao'] || 'Fibra',
-      contrato: normalizedRow['contrato'] || '',
-      vencimento: normalizedRow['vencimento'] || '',
-      status: normalizedRow['status'] || 'OK',
-      valorMensal: normalizedRow['valormensal'] || normalizedRow['valor'] || 'R$ 0,00',
+      razaoSocial,
+      cnpj,
+      provedor: provedorNome,
+      contatoProvedor: contato,
+      tipoConexao,
+      contrato: normalizedRow['contrato'] || existing?.contrato || '',
+      vencimento: normalizedRow['vencimento'] || existing?.vencimento || '10',
+      status: normalizedRow['status'] || existing?.status || 'OK',
+      valorMensal: normalizedRow['valormensal'] || normalizedRow['valor'] || existing?.valorMensal || 'R$ 0,00',
     });
   });
 
