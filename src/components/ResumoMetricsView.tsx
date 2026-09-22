@@ -1,11 +1,7 @@
 import React, { useMemo } from 'react';
 import { UsinaConcessionaria, ProvedorInternet } from '../types';
 import { 
-  Building2, 
   Wifi, 
-  CheckCircle2, 
-  AlertTriangle, 
-  XCircle, 
   MapPin, 
   Radio, 
   Zap
@@ -24,18 +20,6 @@ export const ResumoMetricsView: React.FC<ResumoMetricsViewProps> = ({ usinas, pr
 
     // Concessionarias set
     const concessionariasSet = new Set(usinas.map((u) => u.concessionaria).filter(Boolean));
-    
-    // Status breakdown
-    let okCount = 0;
-    let atencaoCount = 0;
-    let criticoCount = 0;
-
-    provedores.forEach((p) => {
-      const st = p.status?.toUpperCase() || 'OK';
-      if (st.includes('CRÍ') || st.includes('CRIT')) criticoCount++;
-      else if (st.includes('ATEN')) atencaoCount++;
-      else okCount++;
-    });
 
     // Connection Type breakdown
     const tipoMap: Record<string, number> = {};
@@ -54,9 +38,6 @@ export const ResumoMetricsView: React.FC<ResumoMetricsViewProps> = ({ usinas, pr
       totalUsinas,
       totalProvedores,
       concessionariasCount: concessionariasSet.size,
-      okCount,
-      atencaoCount,
-      criticoCount,
       tipoMap,
       ufMap,
     };
@@ -66,7 +47,7 @@ export const ResumoMetricsView: React.FC<ResumoMetricsViewProps> = ({ usinas, pr
     <div className="space-y-6">
       
       {/* Top Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         
         {/* Total Usinas */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
@@ -93,36 +74,6 @@ export const ResumoMetricsView: React.FC<ResumoMetricsViewProps> = ({ usinas, pr
           </div>
           <div className="bg-sky-100 p-3.5 rounded-2xl border border-sky-300 text-sky-800">
             <Wifi className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Status Operacional OK */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">Status OK</span>
-            <div className="text-3xl font-extrabold text-emerald-700 mt-1">{metrics.okCount}</div>
-            <span className="text-xs text-slate-600 font-medium mt-1 inline-block">
-              {Math.round((metrics.okCount / (metrics.totalProvedores || 1)) * 100)}% da rede operacional
-            </span>
-          </div>
-          <div className="bg-emerald-100 p-3.5 rounded-2xl border border-emerald-300 text-emerald-800">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Status Crítico / Atenção */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">Atenção / Crítico</span>
-            <div className="text-3xl font-extrabold text-rose-700 mt-1">
-              {metrics.criticoCount + metrics.atencaoCount}
-            </div>
-            <span className="text-xs text-rose-800 font-bold mt-1 inline-block">
-              {metrics.criticoCount} Críticos • {metrics.atencaoCount} Atenção
-            </span>
-          </div>
-          <div className="bg-rose-100 p-3.5 rounded-2xl border border-rose-300 text-rose-800">
-            <AlertTriangle className="w-6 h-6" />
           </div>
         </div>
 
