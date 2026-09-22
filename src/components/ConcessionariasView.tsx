@@ -18,7 +18,8 @@ import {
   Globe,
   Sparkles,
   Mail,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Navigation
 } from 'lucide-react';
 
 interface ConcessionariasViewProps {
@@ -103,6 +104,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
         item.codigoInstalacaoUG.toLowerCase().includes(query) ||
         (item.medidor && item.medidor.toLowerCase().includes(query)) ||
         item.codigoCliente?.toLowerCase().includes(query) ||
+        (item.pontoReferencia && item.pontoReferencia.toLowerCase().includes(query)) ||
         item.contatoDisCo.toLowerCase().includes(query) ||
         item.endereco.toLowerCase().includes(query)
       );
@@ -135,6 +137,10 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       `ENDEREÇO DA USINA`,
       `Endereço: ${u.endereco || 'Endereço não informado'}`
     ];
+
+    if (u.pontoReferencia && u.pontoReferencia.trim() !== '' && u.pontoReferencia.toUpperCase() !== 'N/A') {
+      lines.push(`Ponto de Referência: ${u.pontoReferencia}`);
+    }
 
     if (u.googleMapsUrl) {
       lines.push('', `LOCALIZAÇÃO GOOGLE MAPS`, `${u.googleMapsUrl}`);
@@ -397,11 +403,20 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Endereço & Google Maps */}
-                      <td className="py-4 px-4 align-top space-y-1 max-w-xs">
+                      {/* Endereço & Ponto de Referência & Google Maps */}
+                      <td className="py-4 px-4 align-top space-y-1.5 max-w-xs">
                         <div className="text-slate-700 text-[11px] leading-snug line-clamp-2 font-medium" title={u.endereco}>
                           {u.endereco || 'Endereço não cadastrado'}
                         </div>
+                        {u.pontoReferencia && u.pontoReferencia.trim() !== '' && u.pontoReferencia.toUpperCase() !== 'N/A' && (
+                          <div className="bg-amber-50/90 border border-amber-200/90 rounded-md px-2 py-1 text-[11px] text-amber-950 leading-snug flex items-start gap-1.5 shadow-2xs">
+                            <Navigation className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold text-amber-800 text-[10px] uppercase block tracking-wider">Ponto de Referência:</span>
+                              <span className="font-medium">{u.pontoReferencia}</span>
+                            </div>
+                          </div>
+                        )}
                         {u.googleMapsUrl && (
                           <a
                             href={u.googleMapsUrl}
@@ -522,8 +537,8 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       )}
                     </div>
 
-                    {/* Endereço */}
-                    <div className="space-y-1 pt-1 border-t border-slate-100">
+                    {/* Endereço & Ponto de Referência */}
+                    <div className="space-y-1.5 pt-1 border-t border-slate-100">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-sky-600" />
                         <span>Endereço da Usina</span>
@@ -531,6 +546,15 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       <p className="text-slate-700 text-xs leading-relaxed font-medium">
                         {u.endereco || 'Endereço não informado'}
                       </p>
+                      {u.pontoReferencia && u.pontoReferencia.trim() !== '' && u.pontoReferencia.toUpperCase() !== 'N/A' && (
+                        <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg p-2.5 text-xs text-amber-950 leading-snug flex items-start gap-2 shadow-2xs">
+                          <Navigation className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-amber-800 text-[10px] uppercase block tracking-wider mb-0.5">Ponto de Referência:</span>
+                            <span className="font-medium">{u.pontoReferencia}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

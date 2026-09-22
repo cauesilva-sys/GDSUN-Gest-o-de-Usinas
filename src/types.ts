@@ -20,6 +20,7 @@ export interface UsinaConcessionaria {
   observacoes?: string;
   enderecoFatura?: string;
   endereco: string; // Endereço da Usina
+  pontoReferencia?: string; // Ponto de Referência da Usina
   googleMapsUrl?: string;
   latitude?: string;
   longitude?: string;
@@ -40,6 +41,7 @@ export interface ProvedorInternet {
   // Campos vinculados via correspondência inteligente de usina:
   usinaBaseNormalizada?: string;
   enderecoUsina?: string; // Puxado da planilha de informações gerais
+  pontoReferenciaUsina?: string; // Ponto de referência da usina correspondente
   ufUsina?: string;
   googleMapsUrl?: string;
 }

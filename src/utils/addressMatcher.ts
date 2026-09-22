@@ -26,6 +26,7 @@ export interface MatchResult {
   uf: string;
   googleMapsUrl?: string;
   usinaMatchedName?: string;
+  pontoReferencia?: string;
 }
 
 /**
@@ -76,6 +77,7 @@ export function findAddressForProvedorUsina(
       uf: bestMatch.uf,
       googleMapsUrl: bestMatch.googleMapsUrl,
       usinaMatchedName: bestMatch.usina,
+      pontoReferencia: bestMatch.pontoReferencia,
     };
   }
 

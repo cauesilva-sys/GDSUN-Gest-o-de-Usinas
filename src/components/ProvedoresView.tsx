@@ -117,6 +117,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
           cnpj: resolvedCnpj || 'Pendente',
           tipoConexao: resolvedTipoConexao,
           enderecoUsina: match.endereco,
+          pontoReferenciaUsina: match.pontoReferencia,
           ufUsina: match.uf,
           googleMapsUrl: match.googleMapsUrl,
           usinaMatchedName: match.usinaMatchedName

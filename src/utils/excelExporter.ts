@@ -18,6 +18,7 @@ export function exportUsinasToExcel(usinas: UsinaConcessionaria[], filename = 'C
     'Medidor': u.medidor,
     'Contato DisCo / Responsáveis': u.contatoDisCo,
     'Endereço': u.endereco,
+    'Ponto de Referência': u.pontoReferencia || '',
     'Google Maps URL': u.googleMapsUrl || '',
     'Status Delfos': u.statusDelfos || 'Operacional'
   }));
@@ -39,6 +40,7 @@ export function exportUsinasToExcel(usinas: UsinaConcessionaria[], filename = 'C
     { wch: 16 },
     { wch: 45 },
     { wch: 60 },
+    { wch: 45 },
     { wch: 45 },
     { wch: 15 }
   ];

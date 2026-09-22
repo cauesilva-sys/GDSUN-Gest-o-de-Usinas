@@ -94,6 +94,7 @@ export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
       contatoDisCo: finalContato,
       whatsappDisCo: normalizedRow['whatsappdisco'] || normalizedRow['whatsapp'] || normalizedRow['whats'] || '',
       endereco: normalizedRow['enderecodafatura'] || normalizedRow['enderecofatura'] || normalizedRow['endereco'] || normalizedRow['localizacao'] || normalizedRow['logradouro'] || '',
+      pontoReferencia: normalizedRow['pontodereferencia'] || normalizedRow['pontoreferencia'] || normalizedRow['referencia'] || normalizedRow['pontodereferenciadausina'] || '',
       googleMapsUrl: normalizedRow['localizacaogooglemaps'] || normalizedRow['maps'] || normalizedRow['googlemaps'] || normalizedRow['linkmaps'] || '',
       latitude: normalizedRow['latitude'] || normalizedRow['lat'] || '',
       longitude: normalizedRow['longitude'] || normalizedRow['long'] || normalizedRow['lng'] || '',
