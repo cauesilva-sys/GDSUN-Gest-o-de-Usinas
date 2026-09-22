@@ -34,6 +34,9 @@ export interface ProvedorInternet {
   provedor: string; // Nome do Provedor
   contatoProvedor: string; // Telefone/whatsapp/contato
   tipoConexao: string; // Fibra, Via Rádio, Satélite, etc.
+  site?: string;
+  login?: string;
+  senha?: string;
   contrato?: string;
   vencimento?: string;
   status: 'OK' | 'ATENÇÃO' | 'CRÍTICO' | string;

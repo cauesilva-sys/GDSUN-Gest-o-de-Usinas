@@ -16,9 +16,6 @@ import {
   Filter, 
   Radio, 
   Globe, 
-  AlertTriangle, 
-  CheckCircle2, 
-  XCircle,
   LayoutGrid,
   ListFilter,
   FileSpreadsheet
@@ -40,7 +37,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
   setSelectedUsinaFilter
 }) => {
   const [selectedTipo, setSelectedTipo] = useState<string>('TODOS');
-  const [selectedStatus, setSelectedStatus] = useState<string>('TODOS');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -94,25 +90,28 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
         const masterInfo = getProvedorMasterInfo(p.usinaNome, usinas);
 
         const isApodi = p.usinaNome.toLowerCase().includes('apodi');
+        const isItuverava = p.usinaNome.toLowerCase().includes('ituverava');
 
         const resolvedRazaoSocial =
-          isApodi
-            ? 'GDPAR SN PARTICIPACOES EM PROJETOS SOLARES S/A'
-            : p.razaoSocial && p.razaoSocial.trim() !== '' && p.razaoSocial.toLowerCase() !== 'pendente'
+          masterInfo.razaoSocial ||
+          (p.razaoSocial && p.razaoSocial.trim() !== '' && p.razaoSocial.toLowerCase() !== 'pendente'
             ? p.razaoSocial
-            : masterInfo.razaoSocial || '';
+            : '');
 
         const resolvedCnpj =
-          isApodi
-            ? '34.366.520/0029-35'
-            : p.cnpj && p.cnpj.trim() !== '' && p.cnpj.toLowerCase() !== 'pendente'
+          masterInfo.cnpj ||
+          (p.cnpj && p.cnpj.trim() !== '' && p.cnpj.toLowerCase() !== 'pendente'
             ? p.cnpj
-            : masterInfo.cnpj || '';
+            : '');
 
-        const resolvedTipoConexao = p.tipoConexao || masterInfo.tipoConexao || 'Fibra';
+        const resolvedProvedor = isItuverava ? 'Starlink' : (p.provedor || masterInfo.provedorPadrao || 'Provedor Local');
+        const resolvedTipoConexao = isItuverava ? 'Satélite' : (p.tipoConexao || masterInfo.tipoConexao || 'Fibra');
+        const resolvedContato = isItuverava ? 'SEM PORTAL' : p.contatoProvedor;
 
         return {
           ...p,
+          provedor: resolvedProvedor,
+          contatoProvedor: resolvedContato,
           razaoSocial: resolvedRazaoSocial || 'Pendente',
           cnpj: resolvedCnpj || 'Pendente',
           tipoConexao: resolvedTipoConexao,
@@ -134,9 +133,8 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
         (item.usinaMatchedName && item.usinaMatchedName.toLowerCase() === selectedUsinaFilter.toLowerCase());
 
       const matchTipo = selectedTipo === 'TODOS' || item.tipoConexao === selectedTipo;
-      const matchStatus = selectedStatus === 'TODOS' || item.status === selectedStatus;
 
-      if (!matchUsina || !matchTipo || !matchStatus) return false;
+      if (!matchUsina || !matchTipo) return false;
 
       if (!query) return true;
 
@@ -149,43 +147,12 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
         (item.enderecoUsina && item.enderecoUsina.toLowerCase().includes(query))
       );
     });
-  }, [enrichedProvedores, searchQuery, selectedUsinaFilter, selectedTipo, selectedStatus]);
+  }, [enrichedProvedores, searchQuery, selectedUsinaFilter, selectedTipo]);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(key);
     setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case 'OK':
-        return (
-          <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
-            <CheckCircle2 className="w-3 h-3 text-emerald-700" /> OK
-          </span>
-        );
-      case 'ATENÇÃO':
-      case 'ATENCAO':
-        return (
-          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
-            <AlertTriangle className="w-3 h-3 text-amber-700" /> ATENÇÃO
-          </span>
-        );
-      case 'CRÍTICO':
-      case 'CRITICO':
-        return (
-          <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
-            <XCircle className="w-3 h-3 text-rose-700" /> CRÍTICO
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 border border-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
-            {status || 'OK'}
-          </span>
-        );
-    }
   };
 
   return (
@@ -237,27 +204,11 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
             </select>
           </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-            <label className="text-xs font-semibold text-slate-600">Status:</label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-transparent text-slate-800 text-xs font-medium focus:outline-none cursor-pointer"
-            >
-              <option value="TODOS">Todos os Status</option>
-              <option value="OK">OK</option>
-              <option value="ATENÇÃO">ATENÇÃO</option>
-              <option value="CRÍTICO">CRÍTICO</option>
-            </select>
-          </div>
-
-          {(selectedUsinaFilter !== 'TODAS' || selectedTipo !== 'TODOS' || selectedStatus !== 'TODOS') && (
+          {(selectedUsinaFilter !== 'TODAS' || selectedTipo !== 'TODOS') && (
             <button
               onClick={() => {
                 setSelectedUsinaFilter('TODAS');
                 setSelectedTipo('TODOS');
-                setSelectedStatus('TODOS');
               }}
               className="text-xs font-bold text-sky-700 hover:text-sky-900 bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 transition-colors"
             >
@@ -324,7 +275,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                   <th className="py-3.5 px-4">Provedor & Conexão</th>
                   <th className="py-3.5 px-4">Contato Provedor (Col. C)</th>
                   <th className="py-3.5 px-4">Razão Social & CNPJ</th>
-                  <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4">Endereço da Usina (Mapeado)</th>
                 </tr>
               </thead>
@@ -376,13 +326,19 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                                     <MessageCircle className="w-3.5 h-3.5 fill-current shrink-0" />
                                     <span>Chamar no WhatsApp ({c.label})</span>
                                   </a>
-                                ) : (
+                                ) : c.url ? (
                                   <a
-                                    href={c.url || '#'}
+                                    href={c.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs px-2.5 py-1 rounded-lg border border-slate-200 transition-colors w-fit"
                                   >
                                     <span>{c.label}</span>
                                   </a>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 font-semibold text-xs px-2.5 py-1 rounded-lg border border-slate-200 w-fit">
+                                    {c.label}
+                                  </span>
                                 )}
                               </div>
                             ))
@@ -422,11 +378,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                             </button>
                           )}
                         </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-4 px-4 align-top">
-                        <div>{getStatusBadge(p.status)}</div>
                       </td>
 
                       {/* Endereço Puxado da Planilha Informações Gerais */}
@@ -482,8 +433,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         <span className="text-[11px] text-slate-500 font-semibold">{p.tipoConexao}</span>
                       </div>
                     </div>
-
-                    <div>{getStatusBadge(p.status)}</div>
                   </div>
 
                   {/* Card Body */}
@@ -497,18 +446,38 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                       </div>
 
                       {contacts.length > 0 ? (
-                        contacts.map((c, idx) => (
-                          <a
-                            key={idx}
-                            href={c.url || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-all shadow-xs"
-                          >
-                            <MessageCircle className="w-4 h-4 fill-current" />
-                            <span>Chamar no WhatsApp ({c.label})</span>
-                          </a>
-                        ))
+                        contacts.map((c, idx) => {
+                          const isWa = c.type === 'whatsapp' || c.url?.includes('wa.me');
+                          return isWa ? (
+                            <a
+                              key={idx}
+                              href={c.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-all shadow-xs"
+                            >
+                              <MessageCircle className="w-4 h-4 fill-current" />
+                              <span>Chamar no WhatsApp ({c.label})</span>
+                            </a>
+                          ) : c.url ? (
+                            <a
+                              key={idx}
+                              href={c.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs py-2 px-3 rounded-xl border border-slate-200 transition-colors"
+                            >
+                              <span>{c.label}</span>
+                            </a>
+                          ) : (
+                            <div
+                              key={idx}
+                              className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-700 font-semibold text-xs py-2 px-3 rounded-xl border border-slate-200"
+                            >
+                              <span>{c.label}</span>
+                            </div>
+                          );
+                        })
                       ) : (
                         <div className="text-slate-400 italic text-xs">Sem número de contato</div>
                       )}

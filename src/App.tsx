@@ -13,11 +13,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // Data storage versioning (upgraded to v5 for Concessionárias Locais: Medidores, Cód. Cliente, UG, Ponto de Referência)
-  const USINAS_VERSION = 'v138_gdsun_data_v5_concessionarias_ref';
-  const PROVEDORES_VERSION = 'v138_gdsun_data_v5_concessionarias_ref';
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_v5';
-  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v5';
+  // Data storage versioning (upgraded to v7 for official Razão Social & CNPJ master data)
+  const USINAS_VERSION = 'v140_gdsun_data_v7_razao_social_cnpj';
+  const PROVEDORES_VERSION = 'v140_gdsun_data_v7_razao_social_cnpj';
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_v7';
+  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v7';
 
   // Clean legacy cache from previous versions if present
   useEffect(() => {
@@ -38,6 +38,14 @@ export default function App() {
       localStorage.removeItem('gdsun_provedores_v4');
       localStorage.removeItem('gdsun_usinas_version_v4');
       localStorage.removeItem('gdsun_provedores_version_v4');
+      localStorage.removeItem('gdsun_usinas_v5');
+      localStorage.removeItem('gdsun_provedores_v5');
+      localStorage.removeItem('gdsun_usinas_version_v5');
+      localStorage.removeItem('gdsun_provedores_version_v5');
+      localStorage.removeItem('gdsun_usinas_v6');
+      localStorage.removeItem('gdsun_provedores_v6');
+      localStorage.removeItem('gdsun_usinas_version_v6');
+      localStorage.removeItem('gdsun_provedores_version_v6');
     } catch {
       // ignore
     }
@@ -46,12 +54,12 @@ export default function App() {
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_usinas_version_v5');
+      const savedVersion = localStorage.getItem('gdsun_usinas_version_v7');
       const saved = localStorage.getItem(USINAS_STORAGE_KEY);
       if (saved && savedVersion === USINAS_VERSION) {
         return JSON.parse(saved);
       }
-      localStorage.setItem('gdsun_usinas_version_v5', USINAS_VERSION);
+      localStorage.setItem('gdsun_usinas_version_v7', USINAS_VERSION);
       localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(initialUsinas));
       return initialUsinas;
     } catch {
@@ -61,7 +69,7 @@ export default function App() {
 
   const [provedores, setProvedores] = useState<ProvedorInternet[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_provedores_version_v5');
+      const savedVersion = localStorage.getItem('gdsun_provedores_version_v7');
       const saved = localStorage.getItem(PROVEDORES_STORAGE_KEY);
       if (saved && savedVersion === PROVEDORES_VERSION) {
         const list = JSON.parse(saved) as ProvedorInternet[];
@@ -75,24 +83,18 @@ export default function App() {
           )
           .map((p) => {
             const master = getProvedorMasterInfo(p.usinaNome);
-            const isApodi = p.usinaNome.toLowerCase().includes('apodi');
+            const isItuverava = p.usinaNome.toLowerCase().includes('ituverava');
             return {
               ...p,
-              razaoSocial: isApodi
-                ? 'GDPAR SN PARTICIPACOES EM PROJETOS SOLARES S/A'
-                : p.razaoSocial && p.razaoSocial !== 'Pendente'
-                ? p.razaoSocial
-                : master.razaoSocial,
-              cnpj: isApodi
-                ? '34.366.520/0029-35'
-                : p.cnpj && p.cnpj !== 'Pendente'
-                ? p.cnpj
-                : master.cnpj,
-              tipoConexao: p.tipoConexao || master.tipoConexao || 'Fibra',
+              razaoSocial: master.razaoSocial || (p.razaoSocial && p.razaoSocial !== 'Pendente' ? p.razaoSocial : 'Pendente'),
+              cnpj: master.cnpj || (p.cnpj && p.cnpj !== 'Pendente' ? p.cnpj : 'Pendente'),
+              provedor: isItuverava ? 'Starlink' : (p.provedor || master.provedorPadrao || 'Provedor Local'),
+              contatoProvedor: isItuverava ? 'SEM PORTAL' : p.contatoProvedor,
+              tipoConexao: isItuverava ? 'Satélite' : (p.tipoConexao || master.tipoConexao || 'Fibra'),
             };
           });
       }
-      localStorage.setItem('gdsun_provedores_version_v5', PROVEDORES_VERSION);
+      localStorage.setItem('gdsun_provedores_version_v7', PROVEDORES_VERSION);
       localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(initialProvedores));
       return initialProvedores;
     } catch {
