@@ -17,6 +17,9 @@ export interface UsinaConcessionaria {
   medidor?: string;
   contatoDisCo: string; // Contato Concessionária Local
   whatsappDisCo?: string;
+  nomeAgenteRelacionamento?: string; // Nome do Agente de Relacionamento DisCo
+  emailAgenteRelacionamento?: string; // E-mail do Agente de Relacionamento DisCo
+  telefoneAgenteRelacionamento?: string; // Telefone do Agente de Relacionamento
   observacoes?: string;
   enderecoFatura?: string;
   endereco: string; // Endereço da Usina

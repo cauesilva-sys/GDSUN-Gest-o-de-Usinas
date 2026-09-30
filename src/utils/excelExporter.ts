@@ -16,6 +16,8 @@ export function exportUsinasToExcel(usinas: UsinaConcessionaria[], filename = 'C
     'Código Cliente': u.codigoCliente,
     'Código Instalação UG': u.codigoInstalacaoUG,
     'Medidor': u.medidor,
+    'E-mail Agente Relacionamento': u.emailAgenteRelacionamento || '',
+    'Nome do Agente': u.nomeAgenteRelacionamento || '',
     'Contato DisCo / Responsáveis': u.contatoDisCo,
     'Endereço': u.endereco,
     'Ponto de Referência': u.pontoReferencia || '',

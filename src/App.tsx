@@ -5,7 +5,12 @@ import { ProvedoresView } from './components/ProvedoresView';
 import { ResumoMetricsView } from './components/ResumoMetricsView';
 import { initialUsinas, initialProvedores } from './data/initialData';
 import { UsinaConcessionaria, ProvedorInternet, SyncConfig, ActiveTab } from './types';
-import { parseUsinasCsv, parseProvedoresCsv, formatGoogleSheetsExportUrl } from './utils/csvParser';
+import { 
+  parseUsinasCsv, 
+  parseProvedoresCsv, 
+  formatGoogleSheetsExportUrl,
+  mergeReclamacoesDistribuidorasCsv 
+} from './utils/csvParser';
 import { getProvedorMasterInfo } from './utils/provedoresMasterData';
 
 export default function App() {
@@ -13,11 +18,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // Data storage versioning (upgraded to v7 for official Razão Social & CNPJ master data)
-  const USINAS_VERSION = 'v140_gdsun_data_v7_razao_social_cnpj';
-  const PROVEDORES_VERSION = 'v140_gdsun_data_v7_razao_social_cnpj';
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_v7';
-  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v7';
+  // Data storage versioning (upgraded to v10 for official exact Razão Social & CNPJ)
+  const USINAS_VERSION = 'v143_gdsun_data_v10_razao_cnpj_exatos';
+  const PROVEDORES_VERSION = 'v143_gdsun_data_v10_razao_cnpj_exatos';
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_v10';
+  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v10';
 
   // Clean legacy cache from previous versions if present
   useEffect(() => {
@@ -46,6 +51,18 @@ export default function App() {
       localStorage.removeItem('gdsun_provedores_v6');
       localStorage.removeItem('gdsun_usinas_version_v6');
       localStorage.removeItem('gdsun_provedores_version_v6');
+      localStorage.removeItem('gdsun_usinas_v7');
+      localStorage.removeItem('gdsun_provedores_v7');
+      localStorage.removeItem('gdsun_usinas_version_v7');
+      localStorage.removeItem('gdsun_provedores_version_v7');
+      localStorage.removeItem('gdsun_usinas_v8');
+      localStorage.removeItem('gdsun_provedores_v8');
+      localStorage.removeItem('gdsun_usinas_version_v8');
+      localStorage.removeItem('gdsun_provedores_version_v8');
+      localStorage.removeItem('gdsun_usinas_v9');
+      localStorage.removeItem('gdsun_provedores_v9');
+      localStorage.removeItem('gdsun_usinas_version_v9');
+      localStorage.removeItem('gdsun_provedores_version_v9');
     } catch {
       // ignore
     }
@@ -54,12 +71,12 @@ export default function App() {
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_usinas_version_v7');
+      const savedVersion = localStorage.getItem('gdsun_usinas_version_v10');
       const saved = localStorage.getItem(USINAS_STORAGE_KEY);
       if (saved && savedVersion === USINAS_VERSION) {
         return JSON.parse(saved);
       }
-      localStorage.setItem('gdsun_usinas_version_v7', USINAS_VERSION);
+      localStorage.setItem('gdsun_usinas_version_v10', USINAS_VERSION);
       localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(initialUsinas));
       return initialUsinas;
     } catch {
@@ -69,7 +86,7 @@ export default function App() {
 
   const [provedores, setProvedores] = useState<ProvedorInternet[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_provedores_version_v7');
+      const savedVersion = localStorage.getItem('gdsun_provedores_version_v10');
       const saved = localStorage.getItem(PROVEDORES_STORAGE_KEY);
       if (saved && savedVersion === PROVEDORES_VERSION) {
         const list = JSON.parse(saved) as ProvedorInternet[];
@@ -94,7 +111,7 @@ export default function App() {
             };
           });
       }
-      localStorage.setItem('gdsun_provedores_version_v7', PROVEDORES_VERSION);
+      localStorage.setItem('gdsun_provedores_version_v10', PROVEDORES_VERSION);
       localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(initialProvedores));
       return initialProvedores;
     } catch {
@@ -243,6 +260,18 @@ export default function App() {
   // Handle manual paste / import
   const handleImportCsvText = (text: string, targetTab: 'usinas' | 'provedores') => {
     if (targetTab === 'usinas') {
+      // Check if it's a Reclamações Distribuidoras CSV
+      const mergeRes = mergeReclamacoesDistribuidorasCsv(text, usinas);
+      if (mergeRes.matchedCount > 0 && mergeRes.matchedCount >= mergeRes.unmatchedRows) {
+        setUsinas(mergeRes.updatedUsinas);
+        try {
+          localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(mergeRes.updatedUsinas));
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
       const parsed = parseUsinasCsv(text);
       if (parsed.length > 0) {
         setUsinas(parsed);
@@ -304,6 +333,14 @@ export default function App() {
             searchQuery={searchQuery}
             selectedUsinaFilter={selectedUsinaFilter}
             setSelectedUsinaFilter={setSelectedUsinaFilter}
+            onUpdateUsinas={(updated) => {
+              setUsinas(updated);
+              try {
+                localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(updated));
+              } catch {
+                // ignore
+              }
+            }}
           />
         )}
 

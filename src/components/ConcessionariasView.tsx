@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { UsinaConcessionaria } from '../types';
 import { parseContacts } from '../utils/whatsapp';
 import { exportUsinasToExcel } from '../utils/excelExporter';
+import { mergeReclamacoesDistribuidorasCsv, ReclamacoesImportResult } from '../utils/csvParser';
 import { 
   Building2, 
   MapPin, 
@@ -19,7 +21,14 @@ import {
   Sparkles,
   Mail,
   FileSpreadsheet,
-  Navigation
+  Navigation,
+  Upload,
+  Pencil,
+  X,
+  CheckCircle2,
+  User,
+  AtSign,
+  ShieldCheck
 } from 'lucide-react';
 
 interface ConcessionariasViewProps {
@@ -27,24 +36,62 @@ interface ConcessionariasViewProps {
   searchQuery: string;
   selectedUsinaFilter: string;
   setSelectedUsinaFilter: (usina: string) => void;
+  onUpdateUsinas?: (updated: UsinaConcessionaria[]) => void;
 }
 
 export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({ 
   usinas, 
   searchQuery,
   selectedUsinaFilter,
-  setSelectedUsinaFilter
+  setSelectedUsinaFilter,
+  onUpdateUsinas
 }) => {
   const [selectedUf, setSelectedUf] = useState<string>('TODAS');
   const [selectedDisCo, setSelectedDisCo] = useState<string>('TODAS');
+  const [selectedRazaoFilter, setSelectedRazaoFilter] = useState<string>('TODAS');
+  const [selectedEmailFilter, setSelectedEmailFilter] = useState<'TODOS' | 'COM_EMAIL' | 'SEM_EMAIL'>('TODOS');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Modal states
+  const [showImportModal, setShowImportModal] = useState<boolean>(false);
+  const [importPastedText, setImportPastedText] = useState<string>('');
+  const [importResult, setImportResult] = useState<ReclamacoesImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit single usina modal
+  const [editingUsina, setEditingUsina] = useState<UsinaConcessionaria | null>(null);
+  const [editRazaoSocial, setEditRazaoSocial] = useState<string>('');
+  const [editCnpj, setEditCnpj] = useState<string>('');
+  const [editAgentName, setEditAgentName] = useState<string>('');
+  const [editAgentEmail, setEditAgentEmail] = useState<string>('');
+  const [editAgentPhone, setEditAgentPhone] = useState<string>('');
+
+  // Count usinas with agent email
+  const usinasWithEmailCount = useMemo(() => {
+    return usinas.filter((u) => {
+      if (u.emailAgenteRelacionamento && u.emailAgenteRelacionamento.trim() !== '') return true;
+      const contacts = parseContacts(u.contatoDisCo);
+      return contacts.some((c) => c.type === 'email');
+    }).length;
+  }, [usinas]);
 
   // List of unique Usinas for filter dropdown
   const uniqueUsinas = useMemo(() => {
     const set = new Set<string>();
     usinas.forEach((u) => {
       if (u.usina) set.add(u.usina);
+    });
+    return ['TODAS', ...Array.from(set).sort()];
+  }, [usinas]);
+
+  // List of unique Razões Sociais / Clientes
+  const uniqueRazoes = useMemo(() => {
+    const set = new Set<string>();
+    usinas.forEach((u) => {
+      if (u.razaoSocial && u.razaoSocial.trim() !== '') {
+        set.add(u.razaoSocial.trim());
+      }
     });
     return ['TODAS', ...Array.from(set).sort()];
   }, [usinas]);
@@ -79,9 +126,11 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     return ['TODAS', ...Array.from(set).sort()];
   }, [usinas]);
 
-  // Filter usinas by Usina, UF, DisCo and search query
+  // Filter usinas by Usina, UF, DisCo, Razão Social, Email Status and search query
   const filteredUsinas = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
+    const queryDigits = query.replace(/\D/g, '');
+
     return usinas.filter((item) => {
       const matchUsina = selectedUsinaFilter === 'TODAS' || 
         item.usina === selectedUsinaFilter ||
@@ -89,10 +138,23 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
         item.usina.toLowerCase().trim() === selectedUsinaFilter.toLowerCase().trim();
       const matchUf = selectedUf === 'TODAS' || item.uf === selectedUf;
       const matchDisCo = selectedDisCo === 'TODAS' || item.concessionaria === selectedDisCo;
+      const matchRazao = selectedRazaoFilter === 'TODAS' || item.razaoSocial === selectedRazaoFilter;
 
-      if (!matchUsina || !matchUf || !matchDisCo) return false;
+      // Email filter
+      const hasEmail = Boolean(
+        (item.emailAgenteRelacionamento && item.emailAgenteRelacionamento.trim() !== '') ||
+        parseContacts(item.contatoDisCo).some((c) => c.type === 'email')
+      );
+
+      if (selectedEmailFilter === 'COM_EMAIL' && !hasEmail) return false;
+      if (selectedEmailFilter === 'SEM_EMAIL' && hasEmail) return false;
+
+      if (!matchUsina || !matchUf || !matchDisCo || !matchRazao) return false;
 
       if (!query) return true;
+
+      const cnpjDigits = (item.cnpj || '').replace(/\D/g, '');
+      const matchCnpj = item.cnpj.toLowerCase().includes(query) || (queryDigits.length >= 4 && cnpjDigits.includes(queryDigits));
 
       return (
         item.usina.toLowerCase().includes(query) ||
@@ -100,16 +162,18 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
         (item.siglaNova && item.siglaNova.toLowerCase().includes(query)) ||
         item.concessionaria.toLowerCase().includes(query) ||
         item.razaoSocial.toLowerCase().includes(query) ||
-        item.cnpj.toLowerCase().includes(query) ||
+        matchCnpj ||
         item.codigoInstalacaoUG.toLowerCase().includes(query) ||
         (item.medidor && item.medidor.toLowerCase().includes(query)) ||
         item.codigoCliente?.toLowerCase().includes(query) ||
         (item.pontoReferencia && item.pontoReferencia.toLowerCase().includes(query)) ||
+        (item.nomeAgenteRelacionamento && item.nomeAgenteRelacionamento.toLowerCase().includes(query)) ||
+        (item.emailAgenteRelacionamento && item.emailAgenteRelacionamento.toLowerCase().includes(query)) ||
         item.contatoDisCo.toLowerCase().includes(query) ||
         item.endereco.toLowerCase().includes(query)
       );
     });
-  }, [usinas, searchQuery, selectedUsinaFilter, selectedUf, selectedDisCo]);
+  }, [usinas, searchQuery, selectedUsinaFilter, selectedUf, selectedDisCo, selectedRazaoFilter, selectedEmailFilter]);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -122,17 +186,19 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       `USINA: ${u.usina}${(u.siglaNova || u.siglaAntiga) ? ` (${u.siglaNova || u.siglaAntiga})` : ''} - ${u.uf}`,
       `CONCESSIONÁRIA: ${u.concessionaria || 'Não informada'}`,
       '',
+      `RAZÃO SOCIAL & CNPJ`,
+      `Razão Social: ${u.razaoSocial || 'Pendente'}`,
+      `CNPJ: ${u.cnpj || 'Pendente'}`,
+      '',
       `DADOS CADASTRAIS`,
       `INSTALAÇÃO UG: ${u.codigoInstalacaoUG || 'N/A'}`,
       `MEDIDOR: ${u.medidor || 'N/A'}`,
       `CÓD. CLIENTE: ${u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A'}`,
       '',
-      `RAZÃO SOCIAL & CNPJ`,
-      `Razão Social: ${u.razaoSocial || 'Pendente'}`,
-      `CNPJ: ${u.cnpj || 'Pendente'}`,
-      '',
-      `AGENTE DE RELACIONAMENTO / CONTATOS`,
-      `Contato: ${u.contatoDisCo || 'N/A'}${u.whatsappDisCo ? `\nWhatsApp DisCo: ${u.whatsappDisCo}` : ''}`,
+      `AGENTE DE RELACIONAMENTO & CONTATOS`,
+      `Agente de Relacionamento: ${u.nomeAgenteRelacionamento || 'Não especificado'}`,
+      `E-mail do Agente: ${u.emailAgenteRelacionamento || 'Não cadastrado'}`,
+      `Contato / Central DisCo: ${u.contatoDisCo || 'N/A'}${u.whatsappDisCo ? `\nWhatsApp DisCo: ${u.whatsappDisCo}` : ''}`,
       '',
       `ENDEREÇO DA USINA`,
       `Endereço: ${u.endereco || 'Endereço não informado'}`
@@ -149,36 +215,203 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     return lines.join('\n');
   };
 
+  // Handle spreadsheet file selected (Excel .xlsx, .xls or .csv)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.SheetNames[0];
+          const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheet]);
+          if (csvText) {
+            processSpreadsheetCsv(csvText);
+          }
+        } catch (err) {
+          console.error('Erro ao ler Excel:', err);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (text) {
+          processSpreadsheetCsv(text);
+        }
+      };
+      reader.readAsText(file);
+    }
+    e.target.value = '';
+  };
+
+  const processSpreadsheetCsv = (csvText: string) => {
+    if (!csvText.trim()) return;
+    const res = mergeReclamacoesDistribuidorasCsv(csvText, usinas);
+    setImportResult(res);
+    if (res.matchedCount > 0 && onUpdateUsinas) {
+      onUpdateUsinas(res.updatedUsinas);
+    }
+  };
+
+  // Open Edit Modal for a single Usina
+  const openEditModal = (u: UsinaConcessionaria) => {
+    setEditingUsina(u);
+    setEditRazaoSocial(u.razaoSocial || '');
+    setEditCnpj(u.cnpj || '');
+    setEditAgentName(u.nomeAgenteRelacionamento || '');
+    
+    // Resolve email if not in field but in contatoDisCo
+    let emailInitial = u.emailAgenteRelacionamento || '';
+    if (!emailInitial) {
+      const contacts = parseContacts(u.contatoDisCo);
+      const emailContact = contacts.find((c) => c.type === 'email');
+      if (emailContact) emailInitial = emailContact.value;
+    }
+    setEditAgentEmail(emailInitial);
+    setEditAgentPhone(u.whatsappDisCo || u.telefoneAgenteRelacionamento || '');
+  };
+
+  // Save single usina modifications
+  const handleSaveSingleUsina = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUsina || !onUpdateUsinas) return;
+
+    const updated = usinas.map((u) => {
+      if (u.id === editingUsina.id) {
+        let finalContato = u.contatoDisCo || '';
+        const cleanEmail = editAgentEmail.trim();
+
+        if (cleanEmail) {
+          if (!finalContato.toLowerCase().includes(cleanEmail.toLowerCase())) {
+            finalContato = finalContato ? `${cleanEmail} / ${finalContato}` : cleanEmail;
+          }
+        }
+
+        return {
+          ...u,
+          razaoSocial: editRazaoSocial.trim() || u.razaoSocial,
+          cnpj: editCnpj.trim() || u.cnpj,
+          nomeAgenteRelacionamento: editAgentName.trim() || undefined,
+          emailAgenteRelacionamento: cleanEmail || undefined,
+          whatsappDisCo: editAgentPhone.trim() || u.whatsappDisCo,
+          telefoneAgenteRelacionamento: editAgentPhone.trim() || undefined,
+          contatoDisCo: finalContato
+        };
+      }
+      return u;
+    });
+
+    onUpdateUsinas(updated);
+    setEditingUsina(null);
+  };
+
   return (
     <div className="space-y-6">
       
-      {/* Filter Bar - Light Theme */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          
-          <div className="flex items-center space-x-2 text-xs font-bold text-slate-700">
-            <Filter className="w-4 h-4 text-amber-600" />
-            <span>Filtros da Tabela:</span>
+      {/* Action Banner for Razão Social, CNPJ & Agentes */}
+      <div className="bg-gradient-to-r from-amber-50 via-sky-50/50 to-white border border-amber-200/80 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="p-2.5 bg-amber-600 text-white rounded-xl shadow-xs shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-extrabold text-slate-900">
+                Razão Social, CNPJ e Agentes de Relacionamento das Usinas (UFV)
+              </h2>
+              <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                <Check className="w-3 h-3" />
+                Razão Social & CNPJ Oficiais
+              </span>
+              <span className="bg-sky-100 text-sky-800 text-[11px] font-bold px-2 py-0.5 rounded-full border border-sky-300">
+                {usinasWithEmailCount} de {usinas.length} com e-mail
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">
+              Base oficial com Razão Social e CNPJ de cada titular (Claro, Raia Drogasil, Magazine Luiza, Raízen, etc.) e contatos diretos com as distribuidoras.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv,text/csv,text/plain"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all hover:shadow cursor-pointer active:scale-95"
+            title="Importar planilha em Excel (.xlsx, .xls) ou CSV com Razão Social, CNPJ e E-mails"
+          >
+            <Upload className="w-4 h-4 text-amber-200" />
+            <span>Atualizar via Planilha (Excel/CSV)</span>
+          </button>
+
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 transition-all cursor-pointer shadow-2xs"
+            title="Colar dados ou ver detalhes da importação"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+            <span>Colar / Opções</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filter and View Mode Toolbar */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Filters Group */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center space-x-1.5 text-xs text-slate-600 font-bold bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200">
+            <Filter className="w-3.5 h-3.5 text-amber-600" />
+            <span>Filtros:</span>
           </div>
 
-          {/* DEDICATED USINA FILTER */}
-          <div className="flex items-center space-x-1.5 bg-amber-50 border border-amber-300 rounded-xl px-2.5 py-1.5">
-            <Building2 className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-            <label className="text-xs font-bold text-amber-900">Apenas Usina:</label>
+          {/* Usina Filter */}
+          <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+            <label className="text-xs font-semibold text-slate-600">Usina:</label>
             <select
               value={selectedUsinaFilter}
               onChange={(e) => setSelectedUsinaFilter(e.target.value)}
-              className="bg-transparent text-amber-950 font-semibold text-xs focus:outline-none cursor-pointer max-w-[220px]"
+              className="bg-transparent text-slate-800 text-xs font-medium focus:outline-none cursor-pointer max-w-[180px]"
             >
-              {uniqueUsinas.map((u) => {
-                const sigla = usinaSiglaMap.get(u);
-                const label = u === 'TODAS' ? 'Todas as Usinas' : (sigla ? `${u} (${sigla})` : u);
+              {uniqueUsinas.map((usinaName) => {
+                const sigla = usinaSiglaMap.get(usinaName);
+                const display = usinaName === 'TODAS' 
+                  ? 'Todas as Usinas' 
+                  : sigla ? `${usinaName} (${sigla})` : usinaName;
                 return (
-                  <option key={u} value={u} className="bg-white text-slate-900">
-                    {label}
+                  <option key={usinaName} value={usinaName} className="bg-white text-slate-900">
+                    {display}
                   </option>
                 );
               })}
+            </select>
+          </div>
+
+          {/* Razão Social / Cliente Filter */}
+          <div className="flex items-center space-x-1.5 bg-amber-50/70 border border-amber-200 rounded-xl px-2.5 py-1.5">
+            <FileText className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+            <label className="text-xs font-bold text-amber-950">Cliente / Razão Social:</label>
+            <select
+              value={selectedRazaoFilter}
+              onChange={(e) => setSelectedRazaoFilter(e.target.value)}
+              className="bg-transparent text-amber-950 text-xs font-semibold focus:outline-none cursor-pointer max-w-[200px]"
+            >
+              {uniqueRazoes.map((r) => (
+                <option key={r} value={r} className="bg-white text-slate-900">
+                  {r === 'TODAS' ? 'Todos os Clientes' : r}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -204,7 +437,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
             <select
               value={selectedDisCo}
               onChange={(e) => setSelectedDisCo(e.target.value)}
-              className="bg-transparent text-slate-800 text-xs font-medium focus:outline-none cursor-pointer max-w-[180px]"
+              className="bg-transparent text-slate-800 text-xs font-medium focus:outline-none cursor-pointer max-w-[170px]"
             >
               {disCos.map((d) => (
                 <option key={d} value={d} className="bg-white text-slate-900">
@@ -214,12 +447,29 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
             </select>
           </div>
 
-          {(selectedUsinaFilter !== 'TODAS' || selectedUf !== 'TODAS' || selectedDisCo !== 'TODAS') && (
+          {/* E-mail Filter */}
+          <div className="flex items-center space-x-1.5 bg-sky-50 border border-sky-200 rounded-xl px-2.5 py-1.5">
+            <AtSign className="w-3.5 h-3.5 text-sky-700 shrink-0" />
+            <label className="text-xs font-bold text-sky-950">E-mail Agente:</label>
+            <select
+              value={selectedEmailFilter}
+              onChange={(e) => setSelectedEmailFilter(e.target.value as any)}
+              className="bg-transparent text-sky-950 font-semibold text-xs focus:outline-none cursor-pointer"
+            >
+              <option value="TODOS" className="bg-white text-slate-900">Todos</option>
+              <option value="COM_EMAIL" className="bg-white text-slate-900">Com E-mail ({usinasWithEmailCount})</option>
+              <option value="SEM_EMAIL" className="bg-white text-slate-900">Sem E-mail ({usinas.length - usinasWithEmailCount})</option>
+            </select>
+          </div>
+
+          {(selectedUsinaFilter !== 'TODAS' || selectedUf !== 'TODAS' || selectedDisCo !== 'TODAS' || selectedRazaoFilter !== 'TODAS' || selectedEmailFilter !== 'TODOS') && (
             <button
               onClick={() => {
                 setSelectedUsinaFilter('TODAS');
                 setSelectedUf('TODAS');
                 setSelectedDisCo('TODAS');
+                setSelectedRazaoFilter('TODAS');
+                setSelectedEmailFilter('TODOS');
               }}
               className="text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200 transition-colors"
             >
@@ -237,7 +487,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           <button
             onClick={() => exportUsinasToExcel(filteredUsinas)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all hover:shadow cursor-pointer active:scale-95"
-            title="Baixar lista de Usinas/Concessionárias em Excel (.xlsx)"
+            title="Baixar lista de Usinas/Concessionárias em Excel (.xlsx) com Razão Social, CNPJ e E-mails"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
             <span>Baixar Excel Usinas</span>
@@ -274,28 +524,29 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           <Building2 className="w-12 h-12 text-slate-300 mx-auto" />
           <h3 className="text-base font-bold text-slate-800">Nenhuma usina encontrada</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Tente mudar a busca ou a seleção no filtro de Usinas / Concessionárias.
+            Tente mudar a busca ou a seleção nos filtros de Usina, Cliente/Razão Social, Concessionária ou E-mail.
           </p>
         </div>
       ) : viewMode === 'table' ? (
-        /* Table View - Light Theme */
+        /* Table View */
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-800">
               <thead className="bg-slate-100/80 text-slate-700 uppercase font-bold text-[11px] border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Usina / UF</th>
+                  <th className="py-3.5 px-4">Razão Social & CNPJ</th>
                   <th className="py-3.5 px-4">Concessionária (DisCo)</th>
                   <th className="py-3.5 px-4">Dados Cadastrais (Instalação, Medidor, Cód. Cliente)</th>
-                  <th className="py-3.5 px-4">Agente de Relacionamento / Contato</th>
-                  <th className="py-3.5 px-4">Razão Social & CNPJ</th>
+                  <th className="py-3.5 px-4">Agente de Relacionamento (E-mail & Contato)</th>
                   <th className="py-3.5 px-4">Endereço da Usina</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-normal">
                 {filteredUsinas.map((u) => {
                   const contacts = parseContacts(u.contatoDisCo);
-                  const isCopiedUG = copiedId === `ug-${u.id}`;
+                  const emailContact = contacts.find((c) => c.type === 'email');
+                  const primaryEmail = u.emailAgenteRelacionamento || emailContact?.value || '';
 
                   return (
                     <tr key={u.id} className="hover:bg-amber-50/40 transition-colors group">
@@ -311,7 +562,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                           </span>
                           <button
                             onClick={() => copyToClipboard(formatFichaUsina(u), `table-card-${u.id}`)}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md border border-slate-200 transition-colors"
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md border border-slate-200 transition-colors cursor-pointer"
                             title="Copiar ficha completa da usina"
                           >
                             {copiedId === `table-card-${u.id}` ? (
@@ -327,6 +578,40 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                             )}
                           </button>
                         </div>
+                      </td>
+
+                      {/* Razão Social & CNPJ */}
+                      <td className="py-4 px-4 align-top space-y-1.5 max-w-xs">
+                        <div className="font-bold text-slate-900 text-xs leading-snug">
+                          {u.razaoSocial || 'Pendente'}
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-amber-900 font-bold bg-amber-50/90 px-2 py-0.5 rounded-md border border-amber-200 w-fit">
+                          <FileText className="w-3 h-3 text-amber-700 shrink-0" />
+                          <span>CNPJ: {u.cnpj || 'Pendente'}</span>
+                          {u.cnpj && (
+                            <button
+                              onClick={() => copyToClipboard(u.cnpj, `cnpj-${u.id}`)}
+                              className="text-slate-400 hover:text-slate-800 ml-1 cursor-pointer"
+                              title="Copiar CNPJ"
+                            >
+                              {copiedId === `cnpj-${u.id}` ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                        {onUpdateUsinas && (
+                          <button
+                            onClick={() => openEditModal(u)}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 px-2 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
+                            title="Editar Razão Social, CNPJ ou Contatos desta usina"
+                          >
+                            <Pencil className="w-2.5 h-2.5" />
+                            <span>Editar Razão / CNPJ</span>
+                          </button>
+                        )}
                       </td>
 
                       {/* Concessionária */}
@@ -353,54 +638,86 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Agente de Relacionamento / Contato Local */}
-                      <td className="py-4 px-4 align-top space-y-1">
-                        <div className="text-slate-800 text-xs">
-                          {u.contatoDisCo ? (
-                            <div className="flex flex-col gap-1">
-                              {contacts.map((c, idx) => (
-                                <a
-                                  key={idx}
-                                  href={c.url || '#'}
-                                  target={c.type === 'whatsapp' || c.type === 'email' ? '_blank' : '_self'}
-                                  rel="noopener noreferrer"
-                                  className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-colors w-fit ${
-                                    c.type === 'email'
-                                      ? 'bg-sky-50 text-sky-900 border-sky-300 hover:bg-sky-100 font-medium'
-                                      : c.type === 'whatsapp'
-                                      ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
-                                      : 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200'
-                                  }`}
-                                  title={c.type === 'email' ? 'Enviar e-mail ao agente de relacionamento' : undefined}
-                                >
-                                  {c.type === 'email' && <Mail className="w-3.5 h-3.5 text-sky-600 shrink-0" />}
-                                  {c.type === 'whatsapp' && <MessageSquareCode className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                                  {c.type === 'phone' && <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />}
-                                  <span>{c.label}</span>
-                                </a>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 italic text-xs">Sem e-mail / contato gravado</span>
-                          )}
-                        </div>
-                        {u.whatsappDisCo && (
-                          <div className="text-[11px] text-emerald-700 flex items-center gap-1 font-bold">
-                            <MessageSquareCode className="w-3 h-3" />
-                            <span>Whats DisCo: {u.whatsappDisCo}</span>
+                      {/* Agente de Relacionamento / E-mail / Contato Local */}
+                      <td className="py-4 px-4 align-top space-y-1.5 max-w-xs">
+                        
+                        {/* Agente Name if available */}
+                        {u.nomeAgenteRelacionamento && (
+                          <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs">
+                            <User className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            <span>{u.nomeAgenteRelacionamento}</span>
                           </div>
                         )}
-                      </td>
 
-                      {/* Razao Social & CNPJ */}
-                      <td className="py-4 px-4 align-top space-y-1 max-w-xs">
-                        <div className="font-bold text-slate-900 text-[11px] leading-tight">
-                          {u.razaoSocial || 'Pendente'}
+                        {/* Dedicated Highlighted Email Badge */}
+                        {primaryEmail ? (
+                          <div className="bg-sky-50 border border-sky-300/80 rounded-lg p-1.5 text-sky-950 space-y-1 shadow-2xs">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[10px] uppercase tracking-wider font-extrabold text-sky-800 flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-sky-600" />
+                                <span>E-mail do Agente</span>
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <a
+                                  href={`mailto:${primaryEmail}`}
+                                  className="text-[10px] font-bold text-sky-700 hover:text-sky-900 bg-white hover:bg-sky-100 px-1.5 py-0.5 rounded border border-sky-200 transition-colors"
+                                  title="Enviar e-mail"
+                                >
+                                  Escrever
+                                </a>
+                                <button
+                                  onClick={() => copyToClipboard(primaryEmail, `email-table-${u.id}`)}
+                                  className="text-sky-700 hover:text-sky-950 p-0.5 rounded hover:bg-sky-100 transition-colors cursor-pointer"
+                                  title="Copiar e-mail"
+                                >
+                                  {copiedId === `email-table-${u.id}` ? (
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                            <div className="font-mono text-[11px] font-semibold text-slate-900 break-all select-all leading-tight">
+                              {primaryEmail}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-400 italic flex items-center gap-1">
+                            <Mail className="w-3 h-3 opacity-50" />
+                            <span>E-mail não cadastrado</span>
+                          </div>
+                        )}
+
+                        {/* Phone / Whatsapp / Other Contacts */}
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {contacts
+                            .filter((c) => c.type !== 'email')
+                            .map((c, idx) => (
+                              <a
+                                key={idx}
+                                href={c.url || '#'}
+                                target={c.type === 'whatsapp' ? '_blank' : '_self'}
+                                rel="noopener noreferrer"
+                                className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors ${
+                                  c.type === 'whatsapp'
+                                    ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
+                                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                                }`}
+                              >
+                                {c.type === 'whatsapp' && <MessageSquareCode className="w-3 h-3 text-emerald-600 shrink-0" />}
+                                {c.type === 'phone' && <Phone className="w-3 h-3 text-slate-500 shrink-0" />}
+                                <span>{c.label}</span>
+                              </a>
+                            ))}
                         </div>
-                        <div className="font-mono text-[11px] text-amber-800 font-bold flex items-center gap-1">
-                          <FileText className="w-3 h-3 text-slate-400" />
-                          <span>CNPJ: {u.cnpj || 'Pendente'}</span>
-                        </div>
+
+                        {u.whatsappDisCo && (
+                          <div className="text-[10px] text-emerald-700 flex items-center gap-1 font-semibold">
+                            <MessageSquareCode className="w-3 h-3" />
+                            <span>Whats: {u.whatsappDisCo}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Endereço & Ponto de Referência & Google Maps */}
@@ -422,14 +739,14 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                             href={u.googleMapsUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[10px] text-sky-700 font-bold hover:text-sky-900 hover:underline"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition-colors"
                           >
-                            <MapPin className="w-3 h-3 shrink-0" />
-                            <span>Ver no Google Maps</span>
                             <ExternalLink className="w-2.5 h-2.5" />
+                            <span>Ver no Maps</span>
                           </a>
                         )}
                       </td>
+
                     </tr>
                   );
                 })}
@@ -438,36 +755,171 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           </div>
         </div>
       ) : (
-        /* Grid Cards View - Light Theme */
+        /* Cards Grid View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredUsinas.map((u) => {
             const contacts = parseContacts(u.contatoDisCo);
+            const emailContact = contacts.find((c) => c.type === 'email');
+            const primaryEmail = u.emailAgenteRelacionamento || emailContact?.value || '';
 
             return (
-              <div
+              <div 
                 key={u.id}
-                className="bg-white border border-slate-200 hover:border-amber-400 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-all group"
+                className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 hover:border-amber-300 group"
               >
                 <div>
-                  {/* Card Header */}
-                  <div className="border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-extrabold px-2 py-0.5 rounded-md">
-                        {u.uf}
-                      </span>
-                      <h3 className="font-extrabold text-slate-900 text-sm group-hover:text-amber-700 transition-colors">
-                        {u.usina}{(u.siglaNova || u.siglaAntiga) ? ` (${u.siglaNova || u.siglaAntiga})` : ''}
-                      </h3>
+                  {/* Card Header: Usina, UF & Copy Ficha */}
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                          {u.uf}
+                        </span>
+                        <h4 className="font-extrabold text-slate-900 group-hover:text-amber-700 transition-colors text-sm">
+                          {u.usina}
+                        </h4>
+                      </div>
+                      {(u.siglaNova || u.siglaAntiga) && (
+                        <div className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                          Sigla: <span className="font-mono font-bold text-slate-700">{u.siglaNova || u.siglaAntiga}</span>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-600 flex items-center gap-1 mt-1 font-semibold">
-                      <Building2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>{u.concessionaria}</span>
-                    </p>
+                    
+                    <button
+                      onClick={() => copyToClipboard(formatFichaUsina(u), `card-${u.id}`)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors shrink-0"
+                      title="Copiar Ficha Completa da Usina"
+                    >
+                      {copiedId === `card-${u.id}` ? (
+                        <Check className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
 
-                  {/* Body Fields */}
-                  <div className="pt-3 space-y-3 text-xs">
+                  {/* Card Body */}
+                  <div className="pt-3 space-y-3">
                     
+                    {/* Razão Social & CNPJ */}
+                    <div className="bg-amber-50/70 rounded-xl p-3 border border-amber-200/90 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="text-[10px] text-amber-800 uppercase font-bold tracking-wider flex items-center gap-1">
+                          <FileText className="w-3 h-3 text-amber-700" />
+                          <span>Razão Social & CNPJ</span>
+                        </div>
+                        {onUpdateUsinas && (
+                          <button
+                            onClick={() => openEditModal(u)}
+                            className="text-slate-500 hover:text-slate-800 p-0.5 rounded hover:bg-amber-100/80 transition-colors cursor-pointer"
+                            title="Editar Razão Social e CNPJ"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="font-bold text-slate-900 text-xs leading-snug">
+                        {u.razaoSocial || 'Pendente'}
+                      </div>
+                      <div className="flex items-center justify-between font-mono text-[11px] text-amber-900 font-extrabold pt-0.5">
+                        <span>CNPJ: {u.cnpj || 'Pendente'}</span>
+                        {u.cnpj && (
+                          <button
+                            onClick={() => copyToClipboard(u.cnpj, `card-cnpj-${u.id}`)}
+                            className="text-amber-800 hover:text-amber-950 cursor-pointer"
+                            title="Copiar CNPJ"
+                          >
+                            {copiedId === `card-cnpj-${u.id}` ? (
+                              <Check className="w-3 h-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Concessionária */}
+                    <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 font-semibold">Concessionária:</span>
+                      <span className="font-bold text-slate-900 flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                        <span>{u.concessionaria || 'Não informada'}</span>
+                      </span>
+                    </div>
+
+                    {/* Agente de Relacionamento & E-mail */}
+                    <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-sky-800 flex items-center gap-1">
+                          <User className="w-3 h-3 text-sky-600" />
+                          <span>Agente de Relacionamento</span>
+                        </span>
+                        {onUpdateUsinas && (
+                          <button
+                            onClick={() => openEditModal(u)}
+                            className="text-slate-400 hover:text-slate-700 p-0.5 rounded hover:bg-sky-100 transition-colors"
+                            title="Editar agente e e-mail"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {u.nomeAgenteRelacionamento && (
+                        <div className="font-bold text-slate-900 text-xs">
+                          {u.nomeAgenteRelacionamento}
+                        </div>
+                      )}
+
+                      {primaryEmail ? (
+                        <div className="flex items-center justify-between gap-1 bg-white p-2 rounded-lg border border-sky-200">
+                          <div className="font-mono text-xs font-bold text-sky-950 truncate select-all">
+                            {primaryEmail}
+                          </div>
+                          <button
+                            onClick={() => copyToClipboard(primaryEmail, `card-email-${u.id}`)}
+                            className="text-sky-700 hover:text-sky-950 p-1 rounded hover:bg-sky-50 transition-colors shrink-0"
+                            title="Copiar e-mail"
+                          >
+                            {copiedId === `card-email-${u.id}` ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-slate-400 italic text-xs">
+                          E-mail do agente pendente
+                        </div>
+                      )}
+
+                      {/* Phone contacts */}
+                      {contacts.filter(c => c.type !== 'email').length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {contacts.filter(c => c.type !== 'email').map((c, idx) => (
+                            <a
+                              key={idx}
+                              href={c.url || '#'}
+                              target={c.type === 'whatsapp' ? '_blank' : '_self'}
+                              rel="noopener noreferrer"
+                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border transition-colors ${
+                                c.type === 'whatsapp'
+                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {c.type === 'whatsapp' && <MessageSquareCode className="w-3 h-3 text-emerald-600 shrink-0" />}
+                              {c.type === 'phone' && <Phone className="w-3 h-3 text-slate-500 shrink-0" />}
+                              <span>{c.label}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Dados Cadastrais */}
                     <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 space-y-1">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
@@ -490,53 +942,6 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Razao Social & CNPJ */}
-                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-1">
-                      <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
-                        Razão Social & CNPJ
-                      </div>
-                      <div className="font-bold text-slate-900 text-xs leading-snug">
-                        {u.razaoSocial || 'Pendente'}
-                      </div>
-                      <div className="font-mono text-[11px] text-amber-800 font-extrabold">
-                        CNPJ: {u.cnpj || 'Pendente'}
-                      </div>
-                    </div>
-
-                    {/* Contatos Local DisCo / Agente de Relacionamento */}
-                    <div className="space-y-1">
-                      <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
-                        <Mail className="w-3 h-3 text-amber-600" />
-                        <span>Agente de Relacionamento / Contatos</span>
-                      </div>
-                      {contacts.length > 0 ? (
-                        <div className="flex flex-col gap-1 pt-0.5">
-                          {contacts.map((c, idx) => (
-                            <a
-                              key={idx}
-                              href={c.url || '#'}
-                              target={c.type === 'whatsapp' || c.type === 'email' ? '_blank' : '_self'}
-                              rel="noopener noreferrer"
-                              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors w-fit ${
-                                c.type === 'email'
-                                  ? 'bg-sky-50 text-sky-900 border-sky-300 hover:bg-sky-100 font-medium'
-                                  : c.type === 'whatsapp'
-                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
-                                  : 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200'
-                              }`}
-                            >
-                              {c.type === 'email' && <Mail className="w-3.5 h-3.5 text-sky-600 shrink-0" />}
-                              {c.type === 'whatsapp' && <MessageSquareCode className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                              {c.type === 'phone' && <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />}
-                              <span>{c.label}</span>
-                            </a>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-slate-400 italic text-xs">Sem e-mail / contato gravado</div>
-                      )}
-                    </div>
-
                     {/* Endereço & Ponto de Referência */}
                     <div className="space-y-1.5 pt-1 border-t border-slate-100">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
@@ -556,48 +961,263 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         </div>
                       )}
                     </div>
+
                   </div>
                 </div>
 
-                {/* Card Footer Actions */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                  {u.googleMapsUrl ? (
+                {/* Card Footer: Google Maps link */}
+                {u.googleMapsUrl && (
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                     <a
                       href={u.googleMapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-900 text-xs font-bold"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-900 transition-colors"
                     >
-                      <Globe className="w-3.5 h-3.5" />
+                      <ExternalLink className="w-3.5 h-3.5" />
                       <span>Abrir no Google Maps</span>
-                      <ExternalLink className="w-3 h-3" />
                     </a>
-                  ) : (
-                    <span className="text-slate-400 text-xs">Sem link no Maps</span>
-                  )}
-
-                  <button
-                    onClick={() => copyToClipboard(formatFichaUsina(u), `card-${u.id}`)}
-                    className="flex items-center gap-1 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors font-medium cursor-pointer active:scale-95"
-                  >
-                    {copiedId === `card-${u.id}` ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        <span className="text-emerald-700 font-bold">Copiado</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3 text-slate-500" />
-                        <span>Copiar Ficha</span>
-                      </>
-                    )}
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
+
+      {/* MODAL: Import Spreadsheet (Excel .xlsx / .xls or CSV) */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    Importar / Atualizar Planilha de Usinas
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Suporta arquivos Excel (.xlsx, .xls) ou CSV com Razão Social, CNPJ, E-mails e Contatos
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportResult(null);
+                  setImportPastedText('');
+                }}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Success result message */}
+            {importResult && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs p-4 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 font-bold text-sm text-emerald-800">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>{importResult.matchedCount} Usinas atualizadas com sucesso!</span>
+                </div>
+                <p className="text-emerald-700">
+                  Os dados de Razão Social, CNPJ e contatos foram incorporados e salvos automaticamente.
+                </p>
+                {importResult.matchedDetails.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto bg-white/80 p-2.5 rounded-lg border border-emerald-200 space-y-1.5 font-mono text-[11px]">
+                    {importResult.matchedDetails.map((m, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center text-slate-800 border-b border-slate-100 pb-1">
+                        <span className="font-bold text-slate-900">{m.usina} ({m.concessionaria})</span>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          {m.razaoSocial && <span className="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded font-sans font-semibold">{m.razaoSocial}</span>}
+                          {m.cnpj && <span className="text-slate-600">{m.cnpj}</span>}
+                          {m.email && <span className="text-sky-700 font-semibold">{m.email}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Option 1: File selector */}
+              <div className="border-2 border-dashed border-amber-200 hover:border-amber-400 bg-amber-50/30 rounded-xl p-5 text-center space-y-2 transition-colors">
+                <Upload className="w-8 h-8 text-amber-600 mx-auto" />
+                <div className="text-xs">
+                  <span className="font-bold text-slate-800">Selecione seu arquivo Excel (.xlsx, .xls) ou CSV</span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Reconhece automaticamente colunas como <strong>Usina / UFV, Razão Social, CNPJ, E-mail do Agente, Concessionária</strong>.
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Escolher Arquivo do Computador</span>
+                </button>
+              </div>
+
+              {/* Option 2: Paste CSV text */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Ou cole o conteúdo tabular copiado do Excel/Sheets:
+                </label>
+                <textarea
+                  rows={5}
+                  value={importPastedText}
+                  onChange={(e) => setImportPastedText(e.target.value)}
+                  placeholder="Ex: Usina, Razão Social, CNPJ, Concessionária, E-mail Agente..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 placeholder-slate-400 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportResult(null);
+                    setImportPastedText('');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl border border-slate-200 cursor-pointer"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  disabled={!importPastedText.trim()}
+                  onClick={() => processSpreadsheetCsv(importPastedText)}
+                  className="px-4 py-2 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-50 rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Processar Texto Colado</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Edit Single Usina (Razão Social, CNPJ, Agente & Email) */}
+      {editingUsina && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-amber-600" />
+                <h3 className="font-extrabold text-slate-900 text-sm">
+                  Editar Razão Social, CNPJ e Contatos da Usina
+                </h3>
+              </div>
+              <button
+                onClick={() => setEditingUsina(null)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+              <div className="font-bold text-slate-900">{editingUsina.usina}</div>
+              <div className="text-slate-500 font-semibold">{editingUsina.concessionaria} • {editingUsina.uf}</div>
+            </div>
+
+            <form onSubmit={handleSaveSingleUsina} className="space-y-3 text-xs">
+              
+              {/* Razão Social */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 block">
+                  Razão Social (Titular / Cliente):
+                </label>
+                <input
+                  type="text"
+                  value={editRazaoSocial}
+                  onChange={(e) => setEditRazaoSocial(e.target.value)}
+                  placeholder="Ex: CLARO SA, RAIA DROGASIL SA, MAGAZINE LUIZA SA..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
+                />
+              </div>
+
+              {/* CNPJ */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 block">
+                  CNPJ do Titular:
+                </label>
+                <input
+                  type="text"
+                  value={editCnpj}
+                  onChange={(e) => setEditCnpj(e.target.value)}
+                  placeholder="Ex: 40.432.544/0001-47 ou 61.585.865/0001-51"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
+                />
+              </div>
+
+              {/* Nome do Agente */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 block">
+                  Nome do Agente de Relacionamento DisCo:
+                </label>
+                <input
+                  type="text"
+                  value={editAgentName}
+                  onChange={(e) => setEditAgentName(e.target.value)}
+                  placeholder="Ex: Carlos Eduardo (Gestor Contas)"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:bg-white"
+                />
+              </div>
+
+              {/* E-mail do Agente */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 block">
+                  E-mail do Agente de Relacionamento:
+                </label>
+                <input
+                  type="email"
+                  value={editAgentEmail}
+                  onChange={(e) => setEditAgentEmail(e.target.value)}
+                  placeholder="Ex: agente.relacionamento@concessionaria.com.br"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:bg-white"
+                />
+              </div>
+
+              {/* Telefone / WhatsApp */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 block">
+                  Telefone / WhatsApp DisCo:
+                </label>
+                <input
+                  type="text"
+                  value={editAgentPhone}
+                  onChange={(e) => setEditAgentPhone(e.target.value)}
+                  placeholder="Ex: 0800 000 0000 ou (11) 99999-9999"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:bg-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingUsina(null)}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

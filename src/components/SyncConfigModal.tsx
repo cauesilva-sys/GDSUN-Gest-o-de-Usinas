@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { SyncConfig } from '../types';
 import { 
   FileSpreadsheet, 
@@ -224,11 +225,64 @@ export const SyncConfigModal: React.FC<SyncConfigModalProps> = ({
                 </label>
               </div>
 
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  id="sync-file-upload"
+                  accept=".xlsx,.xls,.csv,text/csv,text/plain"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const fileName = file.name.toLowerCase();
+                      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          try {
+                            const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+                            const wb = XLSX.read(data, { type: 'array' });
+                            const firstSheet = wb.SheetNames[0];
+                            const csv = XLSX.utils.sheet_to_csv(wb.Sheets[firstSheet]);
+                            if (csv) {
+                              onImportCsvText(csv, pasteTarget);
+                              setImportedMessage(`Planilha Excel "${file.name}" importada com sucesso!`);
+                              setTimeout(() => setImportedMessage(null), 4000);
+                            }
+                          } catch (err) {
+                            console.error('Erro ao ler Excel:', err);
+                          }
+                        };
+                        reader.readAsArrayBuffer(file);
+                      } else {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const content = ev.target?.result as string;
+                          if (content) {
+                            onImportCsvText(content, pasteTarget);
+                            setImportedMessage(`Arquivo "${file.name}" importado com sucesso!`);
+                            setTimeout(() => setImportedMessage(null), 4000);
+                          }
+                        };
+                        reader.readAsText(file);
+                      }
+                    }
+                    e.target.value = '';
+                  }}
+                />
+                <label
+                  htmlFor="sync-file-upload"
+                  className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold py-2 px-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-indigo-700" />
+                  <span>Selecionar arquivo Excel (.xlsx, .xls) ou CSV do computador</span>
+                </label>
+              </div>
+
               <textarea
-                rows={5}
+                rows={4}
                 value={pastedCsv}
                 onChange={(e) => setPastedCsv(e.target.value)}
-                placeholder="Cole o conteúdo CSV copiado do seu Excel ou Google Sheets aqui..."
+                placeholder="Ou cole o conteúdo CSV copiado do seu Excel ou Google Sheets aqui..."
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 placeholder-slate-400 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:bg-white"
               />
 
