@@ -313,59 +313,13 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
   return (
     <div className="space-y-6">
-      
-      {/* Action Banner for Razão Social, CNPJ & Agentes */}
-      <div className="bg-gradient-to-r from-amber-50 via-sky-50/50 to-white border border-amber-200/80 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start gap-3.5">
-          <div className="p-2.5 bg-amber-600 text-white rounded-xl shadow-xs shrink-0">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-extrabold text-slate-900">
-                Razão Social, CNPJ e Agentes de Relacionamento das Usinas (UFV)
-              </h2>
-              <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
-                <Check className="w-3 h-3" />
-                Razão Social & CNPJ Oficiais
-              </span>
-              <span className="bg-sky-100 text-sky-800 text-[11px] font-bold px-2 py-0.5 rounded-full border border-sky-300">
-                {usinasWithEmailCount} de {usinas.length} com e-mail
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">
-              Base oficial com Razão Social e CNPJ de cada titular (Claro, Raia Drogasil, Magazine Luiza, Raízen, etc.) e contatos diretos com as distribuidoras.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv,text/csv,text/plain"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all hover:shadow cursor-pointer active:scale-95"
-            title="Importar planilha em Excel (.xlsx, .xls) ou CSV com Razão Social, CNPJ e E-mails"
-          >
-            <Upload className="w-4 h-4 text-amber-200" />
-            <span>Atualizar via Planilha (Excel/CSV)</span>
-          </button>
-
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 transition-all cursor-pointer shadow-2xs"
-            title="Colar dados ou ver detalhes da importação"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-            <span>Colar / Opções</span>
-          </button>
-        </div>
-      </div>
+      <input
+        type="file"
+        accept=".xlsx,.xls,.csv,text/csv,text/plain"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        className="hidden"
+      />
 
       {/* Filter and View Mode Toolbar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
