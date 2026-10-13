@@ -63,6 +63,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   const [editingUsina, setEditingUsina] = useState<UsinaConcessionaria | null>(null);
   const [editRazaoSocial, setEditRazaoSocial] = useState<string>('');
   const [editCnpj, setEditCnpj] = useState<string>('');
+  const [editCodigoCliente, setEditCodigoCliente] = useState<string>('');
+  const [editCodigoInstalacaoUG, setEditCodigoInstalacaoUG] = useState<string>('');
+  const [editMedidor, setEditMedidor] = useState<string>('');
   const [editAgentName, setEditAgentName] = useState<string>('');
   const [editAgentEmail, setEditAgentEmail] = useState<string>('');
   const [editAgentPhone, setEditAgentPhone] = useState<string>('');
@@ -264,6 +267,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     setEditingUsina(u);
     setEditRazaoSocial(u.razaoSocial || '');
     setEditCnpj(u.cnpj || '');
+    setEditCodigoCliente(u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : '');
+    setEditCodigoInstalacaoUG(u.codigoInstalacaoUG && u.codigoInstalacaoUG !== 'N/A' ? u.codigoInstalacaoUG : '');
+    setEditMedidor(u.medidor && u.medidor !== 'N/A' ? u.medidor : '');
     setEditAgentName(u.nomeAgenteRelacionamento || '');
     
     // Resolve email if not in field but in contatoDisCo
@@ -297,6 +303,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           ...u,
           razaoSocial: editRazaoSocial.trim() || u.razaoSocial,
           cnpj: editCnpj.trim() || u.cnpj,
+          codigoCliente: editCodigoCliente.trim() || u.codigoCliente,
+          codigoInstalacaoUG: editCodigoInstalacaoUG.trim() || u.codigoInstalacaoUG,
+          medidor: editMedidor.trim() || u.medidor,
           nomeAgenteRelacionamento: editAgentName.trim() || undefined,
           emailAgenteRelacionamento: cleanEmail || undefined,
           whatsappDisCo: editAgentPhone.trim() || u.whatsappDisCo,
@@ -1108,6 +1117,46 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   placeholder="Ex: 40.432.544/0001-47 ou 61.585.865/0001-51"
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
                 />
+              </div>
+
+              {/* Dados Cadastrais: Código do Cliente, Instalação UG e Medidor */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 block text-[11px]">
+                    Código do Cliente:
+                  </label>
+                  <input
+                    type="text"
+                    value={editCodigoCliente}
+                    onChange={(e) => setEditCodigoCliente(e.target.value)}
+                    placeholder="Ex: 320001925150"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 block text-[11px]">
+                    Instalação UG:
+                  </label>
+                  <input
+                    type="text"
+                    value={editCodigoInstalacaoUG}
+                    onChange={(e) => setEditCodigoInstalacaoUG(e.target.value)}
+                    placeholder="Ex: 4003459621 ou W9013797081"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 block text-[11px]">
+                    Medidor:
+                  </label>
+                  <input
+                    type="text"
+                    value={editMedidor}
+                    onChange={(e) => setEditMedidor(e.target.value)}
+                    placeholder="Ex: 40184093"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  />
+                </div>
               </div>
 
               {/* Nome do Agente */}

@@ -18,11 +18,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // Data storage versioning (upgraded to v10 for official exact Razão Social & CNPJ)
-  const USINAS_VERSION = 'v143_gdsun_data_v10_razao_cnpj_exatos';
-  const PROVEDORES_VERSION = 'v143_gdsun_data_v10_razao_cnpj_exatos';
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_v10';
-  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v10';
+  // Data storage versioning (upgraded to v11 for Ituverava & São João do Rio do Peixe cadastral data)
+  const USINAS_VERSION = 'v146_gdsun_data_v11_ituverava_peixe_cadastrais';
+  const PROVEDORES_VERSION = 'v146_gdsun_data_v11_ituverava_peixe_cadastrais';
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_v11';
+  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v11';
 
   // Clean legacy cache from previous versions if present
   useEffect(() => {
@@ -63,6 +63,10 @@ export default function App() {
       localStorage.removeItem('gdsun_provedores_v9');
       localStorage.removeItem('gdsun_usinas_version_v9');
       localStorage.removeItem('gdsun_provedores_version_v9');
+      localStorage.removeItem('gdsun_usinas_v10');
+      localStorage.removeItem('gdsun_provedores_v10');
+      localStorage.removeItem('gdsun_usinas_version_v10');
+      localStorage.removeItem('gdsun_provedores_version_v10');
     } catch {
       // ignore
     }
@@ -71,12 +75,12 @@ export default function App() {
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_usinas_version_v10');
+      const savedVersion = localStorage.getItem('gdsun_usinas_version_v11');
       const saved = localStorage.getItem(USINAS_STORAGE_KEY);
       if (saved && savedVersion === USINAS_VERSION) {
         return JSON.parse(saved);
       }
-      localStorage.setItem('gdsun_usinas_version_v10', USINAS_VERSION);
+      localStorage.setItem('gdsun_usinas_version_v11', USINAS_VERSION);
       localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(initialUsinas));
       return initialUsinas;
     } catch {
@@ -86,7 +90,7 @@ export default function App() {
 
   const [provedores, setProvedores] = useState<ProvedorInternet[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_provedores_version_v10');
+      const savedVersion = localStorage.getItem('gdsun_provedores_version_v11');
       const saved = localStorage.getItem(PROVEDORES_STORAGE_KEY);
       if (saved && savedVersion === PROVEDORES_VERSION) {
         const list = JSON.parse(saved) as ProvedorInternet[];
@@ -111,7 +115,7 @@ export default function App() {
             };
           });
       }
-      localStorage.setItem('gdsun_provedores_version_v10', PROVEDORES_VERSION);
+      localStorage.setItem('gdsun_provedores_version_v11', PROVEDORES_VERSION);
       localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(initialProvedores));
       return initialProvedores;
     } catch {
