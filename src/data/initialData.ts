@@ -764,7 +764,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     "cnpj": "41.157.566/0001-09",
     "concessionaria": "CEMIG",
     "codigoCliente": "N/A",
-    "codigoInstalacaoUG": "3013995863",
+    "codigoInstalacaoUG": "11.013.848.018-91",
     "medidor": "GMP197303847",
     "contatoDisCo": "ana.coelho@cemig.com.br / 0800 727 7520",
     "whatsappDisCo": "",

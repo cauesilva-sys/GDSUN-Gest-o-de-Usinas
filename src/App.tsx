@@ -18,8 +18,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // Data storage versioning (upgraded to v11 for Ituverava & São João do Rio do Peixe cadastral data)
-  const USINAS_VERSION = 'v146_gdsun_data_v11_ituverava_peixe_cadastrais';
+  // Data storage versioning (upgraded for Ibiá II UG adjustment)
+  const USINAS_VERSION = 'v147_gdsun_data_v11_ibia2_ug_1101384801891';
   const PROVEDORES_VERSION = 'v146_gdsun_data_v11_ituverava_peixe_cadastrais';
   const USINAS_STORAGE_KEY = 'gdsun_usinas_v11';
   const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v11';
