@@ -13,7 +13,9 @@ export interface UsinaConcessionaria {
   cnpjCliente?: string;
   concessionaria: string; // DisCo
   codigoCliente?: string;
-  codigoInstalacaoUG: string; // Número da Instalação
+  codigoInstalacaoUG: string; // Número da Instalação (UG)
+  codigoInstalacaoAntigaUG?: string; // Código da Instalação Antiga (UG)
+  codigoInstalacaoNovaUG?: string; // Código da Instalação Nova (UG)
   medidor?: string;
   contatoDisCo: string; // Contato Concessionária Local
   whatsappDisCo?: string;

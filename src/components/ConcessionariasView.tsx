@@ -63,7 +63,11 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   const [editingUsina, setEditingUsina] = useState<UsinaConcessionaria | null>(null);
   const [editRazaoSocial, setEditRazaoSocial] = useState<string>('');
   const [editCnpj, setEditCnpj] = useState<string>('');
+  const [editRazaoSocialCliente, setEditRazaoSocialCliente] = useState<string>('');
+  const [editCnpjCliente, setEditCnpjCliente] = useState<string>('');
   const [editCodigoCliente, setEditCodigoCliente] = useState<string>('');
+  const [editCodigoInstalacaoAntigaUG, setEditCodigoInstalacaoAntigaUG] = useState<string>('');
+  const [editCodigoInstalacaoNovaUG, setEditCodigoInstalacaoNovaUG] = useState<string>('');
   const [editCodigoInstalacaoUG, setEditCodigoInstalacaoUG] = useState<string>('');
   const [editMedidor, setEditMedidor] = useState<string>('');
   const [editAgentName, setEditAgentName] = useState<string>('');
@@ -92,8 +96,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   const uniqueRazoes = useMemo(() => {
     const set = new Set<string>();
     usinas.forEach((u) => {
-      if (u.razaoSocial && u.razaoSocial.trim() !== '') {
-        set.add(u.razaoSocial.trim());
+      const val = u.razaoSocialCliente || u.razaoSocial;
+      if (val && val.trim() !== '') {
+        set.add(val.trim());
       }
     });
     return ['TODAS', ...Array.from(set).sort()];
@@ -141,7 +146,8 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
         item.usina.toLowerCase().trim() === selectedUsinaFilter.toLowerCase().trim();
       const matchUf = selectedUf === 'TODAS' || item.uf === selectedUf;
       const matchDisCo = selectedDisCo === 'TODAS' || item.concessionaria === selectedDisCo;
-      const matchRazao = selectedRazaoFilter === 'TODAS' || item.razaoSocial === selectedRazaoFilter;
+      const itemRazao = item.razaoSocialCliente || item.razaoSocial;
+      const matchRazao = selectedRazaoFilter === 'TODAS' || itemRazao === selectedRazaoFilter;
 
       // Email filter
       const hasEmail = Boolean(
@@ -157,7 +163,10 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       if (!query) return true;
 
       const cnpjDigits = (item.cnpj || '').replace(/\D/g, '');
-      const matchCnpj = item.cnpj.toLowerCase().includes(query) || (queryDigits.length >= 4 && cnpjDigits.includes(queryDigits));
+      const cnpjClienteDigits = (item.cnpjCliente || '').replace(/\D/g, '');
+      const matchCnpj = item.cnpj.toLowerCase().includes(query) || 
+        (item.cnpjCliente && item.cnpjCliente.toLowerCase().includes(query)) ||
+        (queryDigits.length >= 4 && (cnpjDigits.includes(queryDigits) || cnpjClienteDigits.includes(queryDigits)));
 
       return (
         item.usina.toLowerCase().includes(query) ||
@@ -165,10 +174,13 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
         (item.siglaNova && item.siglaNova.toLowerCase().includes(query)) ||
         item.concessionaria.toLowerCase().includes(query) ||
         item.razaoSocial.toLowerCase().includes(query) ||
+        (item.razaoSocialCliente && item.razaoSocialCliente.toLowerCase().includes(query)) ||
         matchCnpj ||
+        (item.codigoInstalacaoNovaUG && item.codigoInstalacaoNovaUG.toLowerCase().includes(query)) ||
+        (item.codigoInstalacaoAntigaUG && item.codigoInstalacaoAntigaUG.toLowerCase().includes(query)) ||
         item.codigoInstalacaoUG.toLowerCase().includes(query) ||
         (item.medidor && item.medidor.toLowerCase().includes(query)) ||
-        item.codigoCliente?.toLowerCase().includes(query) ||
+        (item.codigoCliente && item.codigoCliente.toLowerCase().includes(query)) ||
         (item.pontoReferencia && item.pontoReferencia.toLowerCase().includes(query)) ||
         (item.nomeAgenteRelacionamento && item.nomeAgenteRelacionamento.toLowerCase().includes(query)) ||
         (item.emailAgenteRelacionamento && item.emailAgenteRelacionamento.toLowerCase().includes(query)) ||
@@ -190,13 +202,14 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       `CONCESSIONÁRIA: ${u.concessionaria || 'Não informada'}`,
       '',
       `RAZÃO SOCIAL & CNPJ`,
-      `Razão Social: ${u.razaoSocial || 'Pendente'}`,
-      `CNPJ: ${u.cnpj || 'Pendente'}`,
+      `Razão Social Cliente: ${u.razaoSocialCliente || u.razaoSocial || 'Pendente'}`,
+      `CNPJ Cliente: ${u.cnpjCliente || u.cnpj || 'Pendente'}`,
       '',
-      `DADOS CADASTRAIS`,
-      `INSTALAÇÃO UG: ${u.codigoInstalacaoUG || 'N/A'}`,
-      `MEDIDOR: ${u.medidor || 'N/A'}`,
-      `CÓD. CLIENTE: ${u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A'}`,
+      `DADOS CADASTRAIS (UG & MEDIÇÃO)`,
+      `Código do Cliente: ${u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A'}`,
+      `Código da Instalação Antiga (UG): ${u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' ? u.codigoInstalacaoAntigaUG : (u.codigoInstalacaoUG || 'N/A')}`,
+      `Código da Instalação Nova (UG): ${u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A' ? u.codigoInstalacaoNovaUG : 'N/A'}`,
+      `Medidor: ${u.medidor || 'N/A'}`,
       '',
       `AGENTE DE RELACIONAMENTO & CONTATOS`,
       `Agente de Relacionamento: ${u.nomeAgenteRelacionamento || 'Não especificado'}`,
@@ -267,7 +280,11 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     setEditingUsina(u);
     setEditRazaoSocial(u.razaoSocial || '');
     setEditCnpj(u.cnpj || '');
+    setEditRazaoSocialCliente(u.razaoSocialCliente || u.razaoSocial || '');
+    setEditCnpjCliente(u.cnpjCliente || u.cnpj || '');
     setEditCodigoCliente(u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : '');
+    setEditCodigoInstalacaoAntigaUG(u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' ? u.codigoInstalacaoAntigaUG : (u.codigoInstalacaoUG || ''));
+    setEditCodigoInstalacaoNovaUG(u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A' ? u.codigoInstalacaoNovaUG : '');
     setEditCodigoInstalacaoUG(u.codigoInstalacaoUG && u.codigoInstalacaoUG !== 'N/A' ? u.codigoInstalacaoUG : '');
     setEditMedidor(u.medidor && u.medidor !== 'N/A' ? u.medidor : '');
     setEditAgentName(u.nomeAgenteRelacionamento || '');
@@ -299,12 +316,19 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           }
         }
 
+        const novaUG = editCodigoInstalacaoNovaUG.trim();
+        const antigaUG = editCodigoInstalacaoAntigaUG.trim();
+
         return {
           ...u,
           razaoSocial: editRazaoSocial.trim() || u.razaoSocial,
           cnpj: editCnpj.trim() || u.cnpj,
+          razaoSocialCliente: editRazaoSocialCliente.trim() || editRazaoSocial.trim() || u.razaoSocialCliente,
+          cnpjCliente: editCnpjCliente.trim() || editCnpj.trim() || u.cnpjCliente,
           codigoCliente: editCodigoCliente.trim() || u.codigoCliente,
-          codigoInstalacaoUG: editCodigoInstalacaoUG.trim() || u.codigoInstalacaoUG,
+          codigoInstalacaoAntigaUG: antigaUG || u.codigoInstalacaoAntigaUG,
+          codigoInstalacaoNovaUG: novaUG || u.codigoInstalacaoNovaUG,
+          codigoInstalacaoUG: novaUG || antigaUG || u.codigoInstalacaoUG,
           medidor: editMedidor.trim() || u.medidor,
           nomeAgenteRelacionamento: editAgentName.trim() || undefined,
           emailAgenteRelacionamento: cleanEmail || undefined,
@@ -495,14 +519,23 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-800">
-              <thead className="bg-slate-100/80 text-slate-700 uppercase font-bold text-[11px] border-b border-slate-200">
+              <thead className="bg-slate-100/90 text-slate-700 uppercase font-bold text-[11px] border-b border-slate-200 sticky top-0 z-10">
                 <tr>
-                  <th className="py-3.5 px-4">Usina / UF</th>
-                  <th className="py-3.5 px-4">Razão Social & CNPJ</th>
-                  <th className="py-3.5 px-4">Concessionária (DisCo)</th>
-                  <th className="py-3.5 px-4">Dados Cadastrais (Instalação, Medidor, Cód. Cliente)</th>
-                  <th className="py-3.5 px-4">Agente de Relacionamento (E-mail & Contato)</th>
-                  <th className="py-3.5 px-4">Endereço da Usina</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Usina / UF</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Código do Cliente</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Código da Instalação Antiga (UG)</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap bg-amber-50/90 border-x border-amber-300/80 text-amber-950 shadow-2xs">
+                    <div className="flex items-center gap-1.5">
+                      <span>Código da Instalação Nova (UG)</span>
+                      <span className="text-[9px] bg-amber-600 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider">Nova Coluna</span>
+                    </div>
+                  </th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Medidor</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Razão Social Cliente</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">CNPJ Cliente</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Concessionária (DisCo)</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Agente de Relacionamento</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Endereço da Usina</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-normal">
@@ -510,12 +543,18 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   const contacts = parseContacts(u.contatoDisCo);
                   const emailContact = contacts.find((c) => c.type === 'email');
                   const primaryEmail = u.emailAgenteRelacionamento || emailContact?.value || '';
+                  const codCliente = u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A';
+                  const instAntiga = u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' ? u.codigoInstalacaoAntigaUG : (u.codigoInstalacaoUG || 'N/A');
+                  const instNova = u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A' ? u.codigoInstalacaoNovaUG : 'N/A';
+                  const medidorVal = u.medidor && u.medidor !== 'N/A' ? u.medidor : 'N/A';
+                  const razaoSocialCliente = u.razaoSocialCliente || u.razaoSocial || 'Pendente';
+                  const cnpjCliente = u.cnpjCliente || u.cnpj || 'Pendente';
 
                   return (
                     <tr key={u.id} className="hover:bg-amber-50/40 transition-colors group">
                       
                       {/* Usina & UF */}
-                      <td className="py-4 px-4 align-top">
+                      <td className="py-4 px-4 align-top whitespace-nowrap">
                         <div className="font-extrabold text-slate-900 group-hover:text-amber-700 transition-colors text-xs flex items-center gap-1.5">
                           <span>{u.usina}{(u.siglaNova || u.siglaAntiga) ? ` (${u.siglaNova || u.siglaAntiga})` : ''}</span>
                         </div>
@@ -543,17 +582,111 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Razão Social & CNPJ */}
+                      {/* Código do Cliente */}
+                      <td className="py-4 px-4 align-top whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-800 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 w-fit">
+                          <span>{codCliente}</span>
+                          {codCliente !== 'N/A' && (
+                            <button
+                              onClick={() => copyToClipboard(codCliente, `cli-${u.id}`)}
+                              className="text-slate-400 hover:text-slate-800 p-0.5 rounded cursor-pointer"
+                              title="Copiar Código do Cliente"
+                            >
+                              {copiedId === `cli-${u.id}` ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Código da Instalação Antiga (UG) */}
+                      <td className="py-4 px-4 align-top whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-700 bg-slate-100/90 px-2.5 py-1 rounded-md border border-slate-200 w-fit">
+                          <span>{instAntiga}</span>
+                          {instAntiga !== 'N/A' && (
+                            <button
+                              onClick={() => copyToClipboard(instAntiga, `antiga-${u.id}`)}
+                              className="text-slate-400 hover:text-slate-800 p-0.5 rounded cursor-pointer"
+                              title="Copiar Código de Instalação Antiga"
+                            >
+                              {copiedId === `antiga-${u.id}` ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Código da Instalação Nova (UG) - Coluna Nova posicionada logo após Antiga */}
+                      <td className="py-4 px-4 align-top whitespace-nowrap bg-amber-50/40 border-x border-amber-200/60">
+                        <div className="flex items-center gap-1.5 font-mono text-xs font-extrabold text-amber-950 bg-amber-100/90 px-2.5 py-1 rounded-md border border-amber-300 w-fit shadow-2xs">
+                          <span>{instNova}</span>
+                          {instNova !== 'N/A' && (
+                            <button
+                              onClick={() => copyToClipboard(instNova, `nova-${u.id}`)}
+                              className="text-amber-700 hover:text-amber-950 p-0.5 rounded cursor-pointer"
+                              title="Copiar Código de Instalação Nova (UG)"
+                            >
+                              {copiedId === `nova-${u.id}` ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Medidor - Coluna Estritamente Separada */}
+                      <td className="py-4 px-4 align-top whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-amber-900 bg-amber-50/80 px-2.5 py-1 rounded-md border border-amber-200 w-fit">
+                          <span>{medidorVal}</span>
+                          {medidorVal !== 'N/A' && (
+                            <button
+                              onClick={() => copyToClipboard(medidorVal, `med-${u.id}`)}
+                              className="text-slate-400 hover:text-slate-800 p-0.5 rounded cursor-pointer"
+                              title="Copiar Medidor"
+                            >
+                              {copiedId === `med-${u.id}` ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Razão Social Cliente - Coluna Estritamente Separada */}
                       <td className="py-4 px-4 align-top space-y-1.5 max-w-xs">
                         <div className="font-bold text-slate-900 text-xs leading-snug">
-                          {u.razaoSocial || 'Pendente'}
+                          {razaoSocialCliente}
                         </div>
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-amber-900 font-bold bg-amber-50/90 px-2 py-0.5 rounded-md border border-amber-200 w-fit">
+                        {onUpdateUsinas && (
+                          <button
+                            onClick={() => openEditModal(u)}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 px-2 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
+                            title="Editar Dados Cadastrais desta usina"
+                          >
+                            <Pencil className="w-2.5 h-2.5" />
+                            <span>Editar</span>
+                          </button>
+                        )}
+                      </td>
+
+                      {/* CNPJ Cliente - Coluna Estritamente Separada */}
+                      <td className="py-4 px-4 align-top whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-amber-900 font-bold bg-amber-50/90 px-2 py-1 rounded-md border border-amber-200 w-fit">
                           <FileText className="w-3 h-3 text-amber-700 shrink-0" />
-                          <span>CNPJ: {u.cnpj || 'Pendente'}</span>
-                          {u.cnpj && (
+                          <span>{cnpjCliente}</span>
+                          {cnpjCliente !== 'Pendente' && cnpjCliente !== 'N/A' && (
                             <button
-                              onClick={() => copyToClipboard(u.cnpj, `cnpj-${u.id}`)}
+                              onClick={() => copyToClipboard(cnpjCliente, `cnpj-${u.id}`)}
                               className="text-slate-400 hover:text-slate-800 ml-1 cursor-pointer"
                               title="Copiar CNPJ"
                             >
@@ -565,39 +698,13 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                             </button>
                           )}
                         </div>
-                        {onUpdateUsinas && (
-                          <button
-                            onClick={() => openEditModal(u)}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 px-2 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
-                            title="Editar Razão Social, CNPJ ou Contatos desta usina"
-                          >
-                            <Pencil className="w-2.5 h-2.5" />
-                            <span>Editar Razão / CNPJ</span>
-                          </button>
-                        )}
                       </td>
 
                       {/* Concessionária */}
-                      <td className="py-4 px-4 align-top">
-                        <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <td className="py-4 px-4 align-top whitespace-nowrap">
+                        <div className="font-bold text-slate-800 flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200/60 w-fit">
                           <Building2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span>{u.concessionaria || 'Não informada'}</span>
-                        </div>
-                      </td>
-
-                      {/* Dados Cadastrais (Instalação, Medidor, Cód. Cliente) */}
-                      <td className="py-4 px-4 align-top space-y-1">
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 w-fit">
-                          <span className="text-[10px] text-slate-500 font-sans uppercase font-bold">Instalação UG:</span>
-                          <span>{u.codigoInstalacaoUG || 'N/A'}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 w-fit">
-                          <span className="text-[10px] text-amber-700 font-sans uppercase font-bold">Medidor:</span>
-                          <span>{u.medidor || 'N/A'}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-slate-700 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200/60 w-fit">
-                          <span className="text-[10px] text-slate-500 font-sans uppercase font-bold">Cód. Cliente:</span>
-                          <span>{u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A'}</span>
                         </div>
                       </td>
 
@@ -783,13 +890,13 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         )}
                       </div>
                       <div className="font-bold text-slate-900 text-xs leading-snug">
-                        {u.razaoSocial || 'Pendente'}
+                        {u.razaoSocialCliente || u.razaoSocial || 'Pendente'}
                       </div>
                       <div className="flex items-center justify-between font-mono text-[11px] text-amber-900 font-extrabold pt-0.5">
-                        <span>CNPJ: {u.cnpj || 'Pendente'}</span>
-                        {u.cnpj && (
+                        <span>CNPJ: {u.cnpjCliente || u.cnpj || 'Pendente'}</span>
+                        {(u.cnpjCliente || u.cnpj) && (
                           <button
-                            onClick={() => copyToClipboard(u.cnpj, `card-cnpj-${u.id}`)}
+                            onClick={() => copyToClipboard(u.cnpjCliente || u.cnpj || '', `card-cnpj-${u.id}`)}
                             className="text-amber-800 hover:text-amber-950 cursor-pointer"
                             title="Copiar CNPJ"
                           >
@@ -883,24 +990,33 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       )}
                     </div>
 
-                    {/* Dados Cadastrais */}
-                    <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 space-y-1">
-                      <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
-                        <Hash className="w-3 h-3 text-amber-600" />
-                        <span>Dados Cadastrais</span>
+                    {/* Dados Cadastrais da Usina (Cód. Cliente, UG Antiga/Nova e Medidor) */}
+                    <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 space-y-1.5">
+                      <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Hash className="w-3 h-3 text-amber-600" />
+                          <span>Dados Cadastrais da Usina (UG)</span>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 gap-1 text-[11px] font-mono pt-0.5">
-                        <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-200/80">
-                          <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">Instalação UG:</span>
-                          <span className="font-bold text-slate-900">{u.codigoInstalacaoUG || 'N/A'}</span>
+                        <div className="flex justify-between items-center bg-white px-2.5 py-1 rounded-md border border-slate-200/80">
+                          <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">Cód. Cliente:</span>
+                          <span className="font-bold text-slate-900">{u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A'}</span>
                         </div>
-                        <div className="flex justify-between items-center bg-amber-50/80 px-2 py-1 rounded-md border border-amber-200/80">
+                        <div className="flex justify-between items-center bg-white px-2.5 py-1 rounded-md border border-slate-200/80">
+                          <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">Instalação Antiga (UG):</span>
+                          <span className="font-bold text-slate-800">{u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' ? u.codigoInstalacaoAntigaUG : (u.codigoInstalacaoUG || 'N/A')}</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-amber-50 px-2.5 py-1 rounded-md border border-amber-300 shadow-2xs">
+                          <div className="flex items-center gap-1">
+                            <span className="text-amber-900 font-sans text-[10px] uppercase font-bold">Instalação Nova (UG):</span>
+                            <span className="text-[8px] bg-amber-600 text-white font-extrabold px-1 py-0.2 rounded uppercase">Nova</span>
+                          </div>
+                          <span className="font-extrabold text-amber-950">{u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A' ? u.codigoInstalacaoNovaUG : 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-amber-50/50 px-2.5 py-1 rounded-md border border-amber-200/80">
                           <span className="text-amber-800 font-sans text-[10px] uppercase font-bold">Medidor:</span>
                           <span className="font-extrabold text-amber-900">{u.medidor || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-200/80">
-                          <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">Cód. Cliente:</span>
-                          <span className="font-bold text-slate-800">{u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A'}</span>
                         </div>
                       </div>
                     </div>
@@ -1093,34 +1209,40 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
               
               {/* Razão Social */}
               <div className="space-y-1">
-                <label className="font-bold text-slate-800 block">
-                  Razão Social (Titular / Cliente):
+                <label className="font-bold text-slate-800 block text-xs">
+                  Razão Social Cliente / Titular:
                 </label>
                 <input
                   type="text"
-                  value={editRazaoSocial}
-                  onChange={(e) => setEditRazaoSocial(e.target.value)}
+                  value={editRazaoSocialCliente}
+                  onChange={(e) => {
+                    setEditRazaoSocialCliente(e.target.value);
+                    setEditRazaoSocial(e.target.value);
+                  }}
                   placeholder="Ex: CLARO SA, RAIA DROGASIL SA, MAGAZINE LUIZA SA..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
                 />
               </div>
 
-              {/* CNPJ */}
+              {/* CNPJ Cliente */}
               <div className="space-y-1">
-                <label className="font-bold text-slate-800 block">
-                  CNPJ do Titular:
+                <label className="font-bold text-slate-800 block text-xs">
+                  CNPJ Cliente (Formato: 00.000.000/0000-00):
                 </label>
                 <input
                   type="text"
-                  value={editCnpj}
-                  onChange={(e) => setEditCnpj(e.target.value)}
+                  value={editCnpjCliente}
+                  onChange={(e) => {
+                    setEditCnpjCliente(e.target.value);
+                    setEditCnpj(e.target.value);
+                  }}
                   placeholder="Ex: 40.432.544/0001-47 ou 61.585.865/0001-51"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
                 />
               </div>
 
-              {/* Dados Cadastrais: Código do Cliente, Instalação UG e Medidor */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
+              {/* Dados Cadastrais: Código do Cliente, Instalação Antiga, Instalação Nova e Medidor */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 block text-[11px]">
                     Código do Cliente:
@@ -1135,18 +1257,6 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                 </div>
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 block text-[11px]">
-                    Instalação UG:
-                  </label>
-                  <input
-                    type="text"
-                    value={editCodigoInstalacaoUG}
-                    onChange={(e) => setEditCodigoInstalacaoUG(e.target.value)}
-                    placeholder="Ex: 4003459621 ou W9013797081"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 block text-[11px]">
                     Medidor:
                   </label>
                   <input
@@ -1155,6 +1265,31 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                     onChange={(e) => setEditMedidor(e.target.value)}
                     placeholder="Ex: 40184093"
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 block text-[11px]">
+                    Código Instalação Antiga (UG):
+                  </label>
+                  <input
+                    type="text"
+                    value={editCodigoInstalacaoAntigaUG}
+                    onChange={(e) => setEditCodigoInstalacaoAntigaUG(e.target.value)}
+                    placeholder="Ex: 4002560848"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-amber-900 block text-[11px] flex items-center gap-1">
+                    <span>Código Instalação Nova (UG):</span>
+                    <span className="text-[8px] bg-amber-600 text-white font-extrabold px-1 rounded uppercase">Nova</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editCodigoInstalacaoNovaUG}
+                    onChange={(e) => setEditCodigoInstalacaoNovaUG(e.target.value)}
+                    placeholder="Ex: 512612403518"
+                    className="w-full bg-amber-50 border border-amber-300 rounded-lg px-2.5 py-1.5 text-amber-950 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                   />
                 </div>
               </div>

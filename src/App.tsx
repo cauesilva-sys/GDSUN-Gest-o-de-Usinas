@@ -18,10 +18,10 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // Data storage versioning (upgraded for Ibiá II UG adjustment)
-  const USINAS_VERSION = 'v147_gdsun_data_v11_ibia2_ug_1101384801891';
+  // Data storage versioning (upgraded for 11/2026 dataset with synchronized Razão Social and CNPJ)
+  const USINAS_VERSION = 'v149_gdsun_data_v13_razao_social_alinhada';
   const PROVEDORES_VERSION = 'v146_gdsun_data_v11_ituverava_peixe_cadastrais';
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_v11';
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_v13';
   const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v11';
 
   // Clean legacy cache from previous versions if present
@@ -75,12 +75,12 @@ export default function App() {
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_usinas_version_v11');
+      const savedVersion = localStorage.getItem('gdsun_usinas_version_v13');
       const saved = localStorage.getItem(USINAS_STORAGE_KEY);
       if (saved && savedVersion === USINAS_VERSION) {
         return JSON.parse(saved);
       }
-      localStorage.setItem('gdsun_usinas_version_v11', USINAS_VERSION);
+      localStorage.setItem('gdsun_usinas_version_v13', USINAS_VERSION);
       localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(initialUsinas));
       return initialUsinas;
     } catch {
