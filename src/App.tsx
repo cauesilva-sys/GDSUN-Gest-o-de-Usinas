@@ -50,10 +50,19 @@ function parseCsvLinhas(text: string): string[][] {
   return lines;
 }
 
-// Sanitização robusta para Usinas
+// Sanitização robusta para Usinas (endereço mapeado para a coluna R / índice 17)
 function sanitizarUsina(row: any, idx: number): UsinaConcessionaria {
   const isArr = Array.isArray(row);
   const nome = String((isArr ? row[1] : (row.nome || row.usina || row['Usina'])) || `Usina ${idx + 1}`).trim();
+
+  // Coluna R = índice 17 no array base 0
+  const enderecoPlanilha = isArr 
+    ? (row[17] || '') 
+    : (row['Endereço'] || row['Endereco'] || row['ENDEREÇO'] || row['Endereço da Usina'] || '');
+
+  const enderecoFinal = String(enderecoPlanilha).trim() !== '' 
+    ? String(enderecoPlanilha).trim() 
+    : 'Endereço não informado';
 
   return {
     id: String((isArr ? row[0] : row.id) || `usina_${idx + 1}`),
@@ -75,7 +84,7 @@ function sanitizarUsina(row: any, idx: number): UsinaConcessionaria {
     razaoSocialCliente: String((isArr ? row[10] : row['Razão Social Cliente']) || 'N/A').trim(),
     cnpj: String((isArr ? row[11] : row['CNPJ Cliente']) || 'N/A').trim(),
     cnpjCliente: String((isArr ? row[11] : row['CNPJ Cliente']) || 'N/A').trim(),
-    endereco: 'Endereço não informado',
+    endereco: enderecoFinal,
     pontoReferencia: '',
     nomeAgente: 'Clientes Corporativos',
     nomeAgenteRelacionamento: 'Clientes Corporativos',
@@ -114,8 +123,9 @@ export default function App() {
   const USINAS_GID = '1570514093';
   const PROVEDORES_GID = '1710018109'; 
 
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_final_v70';
-  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_final_v70';
+  // Versão de storage incrementada para descarregar o cache antigo e exibir os novos endereços
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_final_v71_colR';
+  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_final_v71_colR';
 
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
