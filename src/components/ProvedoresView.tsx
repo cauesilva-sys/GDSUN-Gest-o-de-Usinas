@@ -38,7 +38,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Lista de usinas únicas para o filtro
+  // Lista de usinas únicas
   const uniqueUsinasProvedores = useMemo(() => {
     const set = new Set<string>();
     provedores.forEach((p: any) => {
@@ -51,7 +51,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
   // Mapa de siglas das usinas
   const usinaSiglaMap = useMemo(() => {
     const map = new Map<string, string>();
-    usinas.forEach((u) => {
+    usinas.forEach((u: any) => {
       const nome = u.usina || u.nome || u.usinaNome;
       if (nome) {
         const sigla = u.siglaAntiga || u.siglaNova || u.sigla || '';
@@ -66,19 +66,18 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
   // Lista de tipos de conexão
   const tiposConexao = useMemo(() => {
     const set = new Set<string>();
-    provedores.forEach((p) => {
+    provedores.forEach((p: any) => {
       if (p.tipoConexao && p.tipoConexao.trim() !== '') set.add(p.tipoConexao.trim());
     });
     return ['TODOS', ...Array.from(set).sort()];
   }, [provedores]);
 
-  // Enriquece os dados lendo prioritariamente o que está na planilha
+  // Enriquece os dados lendo prioritariamente o endereço da aba Provedores
   const enrichedProvedores = useMemo(() => {
     return provedores.map((p: any) => {
       const nomeUsina = String(p.usina || p.usinaNome || '').trim();
       const match = findAddressForProvedorUsina(nomeUsina, usinas);
 
-      // Prioridade: Endereço da Coluna H da aba Provedores -> Fallback para endereço da usina
       const enderecoFinal = (p.endereco && p.endereco !== 'Endereço não informado' && p.endereco.trim() !== '')
         ? p.endereco.trim()
         : (match.endereco || 'Endereço não informado');
@@ -100,10 +99,10 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
     });
   }, [provedores, usinas]);
 
-  // Filtros de pesquisa, usina e tipo de conexão
+  // Filtros de pesquisa, usina e tipo
   const filteredProvedores = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    return enrichedProvedores.filter((item) => {
+    return enrichedProvedores.filter((item: any) => {
       const matchUsina = selectedUsinaFilter === 'TODAS' || 
         item.usinaNome.toLowerCase().includes(selectedUsinaFilter.toLowerCase()) ||
         (item.usinaMatchedName && item.usinaMatchedName.toLowerCase() === selectedUsinaFilter.toLowerCase());
@@ -140,7 +139,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
             <span>Filtros Provedores:</span>
           </div>
 
-          {/* Filtro de Usinas */}
           <div className="flex items-center space-x-1.5 bg-sky-50 border border-sky-300 rounded-xl px-2.5 py-1.5">
             <Building2 className="w-3.5 h-3.5 text-sky-700 shrink-0" />
             <label className="text-xs font-bold text-sky-900">Apenas Usina:</label>
@@ -161,7 +159,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
             </select>
           </div>
 
-          {/* Filtro de Tipo de Conexão */}
           <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
             <label className="text-xs font-semibold text-slate-600">Tipo Conexão:</label>
             <select
@@ -190,14 +187,13 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
           )}
         </div>
 
-        {/* Contador, Exportação e Alternância de Visualização */}
         <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 border-t md:border-t-0 border-slate-200 pt-3 md:pt-0">
           <span className="text-xs text-slate-600 font-medium">
             Exibindo <strong className="text-sky-700 font-bold">{filteredProvedores.length}</strong> de {provedores.length} provedores
           </span>
 
           <button
-            onClick={() => exportProvedoresToExcel(filteredProvedores, usinas)}
+            onClick={() => exportProvedoresToExcel(filteredProvedores as any, usinas)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all hover:shadow cursor-pointer active:scale-95"
             title="Baixar lista de Provedores em Excel (.xlsx)"
           >
@@ -228,13 +224,13 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
         </div>
       </div>
 
-      {/* Tabela ou Grade de Cards */}
+      {/* Exibição em Tabela */}
       {filteredProvedores.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3 shadow-xs">
           <Wifi className="w-12 h-12 text-slate-300 mx-auto" />
           <h3 className="text-base font-bold text-slate-800">Nenhum provedor de internet encontrado</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Tente mudar a busca ou a seleção no filtro de Usinas / Provedores.
+            Tente alterar a pesquisa ou a seleção no filtro de Usinas / Provedores.
           </p>
         </div>
       ) : viewMode === 'table' ? (
@@ -251,12 +247,11 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-normal">
-                {filteredProvedores.map((p) => {
+                {filteredProvedores.map((p: any) => {
                   const contacts = parseContacts(p.contatoProvedor);
 
                   return (
                     <tr key={p.id} className="hover:bg-sky-50/40 transition-colors group">
-                      {/* Coluna Usina */}
                       <td className="py-4 px-4 align-top">
                         <div className="font-extrabold text-slate-900 group-hover:text-sky-700 transition-colors text-xs">
                           {p.usinaNome}{usinaSiglaMap.get(p.usinaNome.toLowerCase()) ? ` (${usinaSiglaMap.get(p.usinaNome.toLowerCase())})` : ''}
@@ -268,7 +263,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         )}
                       </td>
 
-                      {/* Provedor & Conexão */}
                       <td className="py-4 px-4 align-top space-y-1">
                         <div className="font-bold text-sky-900 text-xs flex items-center gap-1.5">
                           <Wifi className="w-3.5 h-3.5 text-sky-600 shrink-0" />
@@ -280,11 +274,10 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Contato Provedor */}
                       <td className="py-4 px-4 align-top">
                         <div className="space-y-1.5">
                           {contacts.length > 0 ? (
-                            contacts.map((c, idx) => (
+                            contacts.map((c: any, idx: number) => (
                               <div key={idx} className="flex flex-col gap-1">
                                 {c.type === 'whatsapp' || c.url?.includes('wa.me') ? (
                                   <a
@@ -319,7 +312,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Razão Social & CNPJ */}
                       <td className="py-4 px-4 align-top space-y-1.5 max-w-xs">
                         <div className="font-bold text-slate-900 text-[11px] leading-tight">
                           {p.razaoSocial}
@@ -351,7 +343,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Endereço da Usina */}
                       <td className="py-4 px-4 align-top space-y-1 max-w-xs">
                         <div className="text-slate-700 text-[11px] leading-snug line-clamp-2 font-medium" title={p.enderecoUsina}>
                           {p.enderecoUsina}
@@ -379,7 +370,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
       ) : (
         /* Visualização em Cards */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredProvedores.map((p) => {
+          {filteredProvedores.map((p: any) => {
             const contacts = parseContacts(p.contatoProvedor);
 
             return (
@@ -405,7 +396,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                   </div>
 
                   <div className="pt-3 space-y-3 text-xs">
-                    {/* Contato Provedor */}
                     <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
                         <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
@@ -413,7 +403,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                       </div>
 
                       {contacts.length > 0 ? (
-                        contacts.map((c, idx) => {
+                        contacts.map((c: any, idx: number) => {
                           const isWa = c.type === 'whatsapp' || c.url?.includes('wa.me');
                           return isWa ? (
                             <a
@@ -440,7 +430,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                       )}
                     </div>
 
-                    {/* Razão Social & CNPJ */}
                     <div className="space-y-1">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
                         Razão Social & CNPJ
@@ -474,7 +463,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Endereço */}
                     <div className="space-y-1 pt-1 border-t border-slate-100">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center justify-between">
                         <span className="flex items-center gap-1">
