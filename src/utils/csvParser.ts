@@ -4,7 +4,7 @@ import { getProvedorMasterInfo } from './provedoresMasterData';
 
 function normalizeKey(key: string): string {
   if (!key) return '';
-  return key
+  return String(key)
     .toLowerCase()
     .trim()
     .normalize('NFD')
@@ -52,13 +52,18 @@ export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
       const razaoSocial = getVal(10, 'razaosocial', 'titular', 'razao') || 'N/A';
       const cnpj = getVal(11, 'cnpj') || 'N/A';
 
-      usinas.push({
+      // Preenche com valores seguros em texto para nunca disparar Cannot read properties of undefined
+      const usinaItem: any = {
         id: `usina_${i}`,
         nome: String(nomeUsina || ''),
         usinaNome: String(nomeUsina || ''),
         sigla: String(sigla || ''),
+        siglaAntiga: String(cols[2] || sigla || ''),
+        siglaNova: String(sigla || ''),
         uf: String(uf || ''),
         concessionaria: String(concessionaria || 'Não informada'),
+        disco: String(concessionaria || 'Não informada'),
+        distribuidora: String(concessionaria || 'Não informada'),
         codigoCliente: String(codigoCliente || 'N/A'),
         instalacaoAntiga: String(instalacaoAntiga || 'N/A'),
         instalacaoNova: String(instalacaoNova || 'N/A'),
@@ -70,8 +75,12 @@ export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
         nomeAgente: 'Clientes Corporativos',
         emailAgente: '',
         telefoneAgente: '',
-        status: 'Ativa'
-      } as unknown as UsinaConcessionaria);
+        status: 'Ativa',
+        tipoConexao: 'Fibra',
+        provedor: 'Pendente',
+      };
+
+      usinas.push(usinaItem as UsinaConcessionaria);
     }
 
     return usinas;
@@ -92,7 +101,7 @@ export function parseProvedoresCsv(
       skipEmptyLines: 'greedy',
     });
 
-    if (!result.data || result.data.length === 0) return prevProvedores;
+    if (!result.data || result.data.length === 0) return prevProvedores || [];
 
     return result.data.map((row, index) => {
       const norm: Record<string, string> = {};
@@ -101,21 +110,21 @@ export function parseProvedoresCsv(
       });
 
       const nome = norm['usina'] || norm['nome'] || `Usina ${index + 1}`;
-      const master = getProvedorMasterInfo(nome);
+      const master = getProvedorMasterInfo ? getProvedorMasterInfo(nome) : {} as any;
 
       return {
         id: `provedor_${index + 1}`,
         usinaNome: String(nome || ''),
-        provedor: String(norm['provedor'] || master.provedorPadrao || 'Provedor Local'),
-        tipoConexao: String(norm['tipoconexao'] || master.tipoConexao || 'Fibra'),
+        provedor: String(norm['provedor'] || master?.provedorPadrao || 'Provedor Local'),
+        tipoConexao: String(norm['tipoconexao'] || master?.tipoConexao || 'Fibra'),
         contatoProvedor: String(norm['contatoprovedor'] || norm['contato'] || 'Pendente'),
-        razaoSocial: String(norm['razaosocial'] || master.razaoSocial || 'Pendente'),
-        cnpj: String(norm['cnpj'] || master.cnpj || 'Pendente'),
+        razaoSocial: String(norm['razaosocial'] || master?.razaoSocial || 'Pendente'),
+        cnpj: String(norm['cnpj'] || master?.cnpj || 'Pendente'),
       } as unknown as ProvedorInternet;
     });
   } catch (err) {
     console.error('Erro no parser de provedores:', err);
-    return prevProvedores;
+    return prevProvedores || [];
   }
 }
 
