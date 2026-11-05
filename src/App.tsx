@@ -18,75 +18,36 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // Data storage versioning (upgraded for Barra do Arará agent update - Aderlan Barroso)
-  const USINAS_VERSION = 'v151_gdsun_data_v15_barra_do_arara';
+  // URL do seu Google Apps Script para salvar alterações
+  const APPS_SCRIPT_WEBAPP_URL = 'https://script.google.com/a/macros/gdsun.com.br/s/AKfycbzEZOcLjHoS_tP-PiRGWyF0C_Pz1K78vviHI21ds8FUYWjbJ7KYMuay7wBNLU1ZyAeD/exec';
+
+  // URLs oficiais da sua planilha Google Sheets
+  const DEFAULT_USINAS_URL = 'https://docs.google.com/spreadsheets/d/1BrlpPTiB1yEkODIvTBpBWKM0h_SMJcywuwH7VWLiTXk/edit?gid=1570514093#gid=1570514093';
+  const DEFAULT_PROVEDORES_URL = 'https://docs.google.com/spreadsheets/d/11yEqEVQveKB-lEKLyT45gCe6FduZL9AKU16uhVlOAW0/edit?gid=350548087#gid=350548087';
+
+  const USINAS_VERSION = 'v152_gdsun_sheets_sync';
   const PROVEDORES_VERSION = 'v146_gdsun_data_v11_ituverava_peixe_cadastrais';
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_v15';
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_v16';
   const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v11';
 
-  // Clean legacy cache from previous versions if present
+  // Limpeza de caches antigos
   useEffect(() => {
     try {
-      localStorage.removeItem('gdsun_usinas');
-      localStorage.removeItem('gdsun_provedores');
-      localStorage.removeItem('gdsun_usinas_version');
-      localStorage.removeItem('gdsun_provedores_version');
-      localStorage.removeItem('gdsun_usinas_v2');
-      localStorage.removeItem('gdsun_provedores_v2');
-      localStorage.removeItem('gdsun_usinas_version_v2');
-      localStorage.removeItem('gdsun_provedores_version_v2');
-      localStorage.removeItem('gdsun_usinas_v3');
-      localStorage.removeItem('gdsun_provedores_v3');
-      localStorage.removeItem('gdsun_usinas_version_v3');
-      localStorage.removeItem('gdsun_provedores_version_v3');
-      localStorage.removeItem('gdsun_usinas_v4');
-      localStorage.removeItem('gdsun_provedores_v4');
-      localStorage.removeItem('gdsun_usinas_version_v4');
-      localStorage.removeItem('gdsun_provedores_version_v4');
-      localStorage.removeItem('gdsun_usinas_v5');
-      localStorage.removeItem('gdsun_provedores_v5');
-      localStorage.removeItem('gdsun_usinas_version_v5');
-      localStorage.removeItem('gdsun_provedores_version_v5');
-      localStorage.removeItem('gdsun_usinas_v6');
-      localStorage.removeItem('gdsun_provedores_v6');
-      localStorage.removeItem('gdsun_usinas_version_v6');
-      localStorage.removeItem('gdsun_provedores_version_v6');
-      localStorage.removeItem('gdsun_usinas_v7');
-      localStorage.removeItem('gdsun_provedores_v7');
-      localStorage.removeItem('gdsun_usinas_version_v7');
-      localStorage.removeItem('gdsun_provedores_version_v7');
-      localStorage.removeItem('gdsun_usinas_v8');
-      localStorage.removeItem('gdsun_provedores_v8');
-      localStorage.removeItem('gdsun_usinas_version_v8');
-      localStorage.removeItem('gdsun_provedores_version_v8');
-      localStorage.removeItem('gdsun_usinas_v9');
-      localStorage.removeItem('gdsun_provedores_v9');
-      localStorage.removeItem('gdsun_usinas_version_v9');
-      localStorage.removeItem('gdsun_provedores_version_v9');
-      localStorage.removeItem('gdsun_usinas_v10');
-      localStorage.removeItem('gdsun_provedores_v10');
-      localStorage.removeItem('gdsun_usinas_version_v10');
-      localStorage.removeItem('gdsun_provedores_version_v10');
-      localStorage.removeItem('gdsun_usinas_v11');
-      localStorage.removeItem('gdsun_usinas_v12');
-      localStorage.removeItem('gdsun_usinas_v13');
-      localStorage.removeItem('gdsun_usinas_version_v13');
-      localStorage.removeItem('gdsun_usinas_v14');
-      localStorage.removeItem('gdsun_usinas_version_v14');
+      localStorage.removeItem('gdsun_usinas_v15');
+      localStorage.removeItem('gdsun_usinas_version_v15');
     } catch {
       // ignore
     }
   }, []);
 
-  // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_usinas_version_v15');
+      const savedVersion = localStorage.getItem('gdsun_usinas_version_v16');
       const saved = localStorage.getItem(USINAS_STORAGE_KEY);
       if (saved && savedVersion === USINAS_VERSION) {
         return JSON.parse(saved);
       }
-      localStorage.setItem('gdsun_usinas_version_v15', USINAS_VERSION);
+      localStorage.setItem('gdsun_usinas_version_v16', USINAS_VERSION);
       localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(initialUsinas));
       return initialUsinas;
     } catch {
@@ -129,17 +90,14 @@ export default function App() {
     }
   });
 
-  const DEFAULT_USINAS_URL = 'https://docs.google.com/spreadsheets/d/11yEqEVQveKB-lEKLyT45gCe6FduZL9AKU16uhVlOAW0/edit?gid=0#gid=0';
-  const DEFAULT_PROVEDORES_URL = 'https://docs.google.com/spreadsheets/d/11yEqEVQveKB-lEKLyT45gCe6FduZL9AKU16uhVlOAW0/edit?gid=350548087#gid=350548087';
-
   const [syncConfig, setSyncConfig] = useState<SyncConfig>(() => {
     try {
-      const saved = localStorage.getItem('gdsun_sync_config');
+      const saved = localStorage.getItem('gdsun_sync_config_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
           ...parsed,
-          sheetsUrlUsinas: parsed.sheetsUrlUsinas || DEFAULT_USINAS_URL,
+          sheetsUrlUsinas: DEFAULT_USINAS_URL,
           sheetsUrlProvedores: parsed.sheetsUrlProvedores || DEFAULT_PROVEDORES_URL
         };
       }
@@ -163,12 +121,10 @@ export default function App() {
     }
   });
 
-  // Ensure title is always set
   useEffect(() => {
     document.title = 'GDSUN Gestão de Usinas';
   }, []);
 
-  // Save to localStorage whenever data changes
   useEffect(() => {
     localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(usinas));
   }, [usinas]);
@@ -178,10 +134,10 @@ export default function App() {
   }, [provedores]);
 
   useEffect(() => {
-    localStorage.setItem('gdsun_sync_config', JSON.stringify(syncConfig));
+    localStorage.setItem('gdsun_sync_config_v2', JSON.stringify(syncConfig));
   }, [syncConfig]);
 
-  // Sync execution from Google Sheets
+  // Sincronização via Leitura do Google Sheets
   const performSyncNow = useCallback(async () => {
     if (!syncConfig.sheetsUrlUsinas && !syncConfig.sheetsUrlProvedores) {
       setSyncConfig((prev) => ({
@@ -195,7 +151,6 @@ export default function App() {
     setSyncConfig((prev) => ({ ...prev, syncStatus: 'syncing' }));
 
     try {
-      // Sync Usinas if URL provided
       if (syncConfig.sheetsUrlUsinas) {
         const url = formatGoogleSheetsExportUrl(syncConfig.sheetsUrlUsinas);
         const res = await fetch(url);
@@ -210,7 +165,6 @@ export default function App() {
         }
       }
 
-      // Sync Provedores if URL provided
       if (syncConfig.sheetsUrlProvedores) {
         const url = formatGoogleSheetsExportUrl(syncConfig.sheetsUrlProvedores);
         const res = await fetch(url);
@@ -250,9 +204,7 @@ export default function App() {
     }
   }, [syncConfig.sheetsUrlUsinas, syncConfig.sheetsUrlProvedores]);
 
-  // Auto-sync Interval Timer & Initial Sync
   useEffect(() => {
-    // Perform initial sync on mount if URLs configured
     if (syncConfig.sheetsUrlUsinas || syncConfig.sheetsUrlProvedores) {
       performSyncNow();
     }
@@ -267,60 +219,61 @@ export default function App() {
     return () => clearInterval(timer);
   }, [syncConfig.autoSyncEnabled, syncConfig.syncIntervalMinutes, performSyncNow]);
 
-  // Handle manual paste / import
-  const handleImportCsvText = (text: string, targetTab: 'usinas' | 'provedores') => {
-    if (targetTab === 'usinas') {
-      // Check if it's a Reclamações Distribuidoras CSV
-      const mergeRes = mergeReclamacoesDistribuidorasCsv(text, usinas);
-      if (mergeRes.matchedCount > 0 && mergeRes.matchedCount >= mergeRes.unmatchedRows) {
-        setUsinas(mergeRes.updatedUsinas);
-        try {
-          localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(mergeRes.updatedUsinas));
-        } catch {
-          // ignore
-        }
-        return;
-      }
-
-      const parsed = parseUsinasCsv(text);
-      if (parsed.length > 0) {
-        setUsinas(parsed);
-        try {
-          localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(parsed));
-        } catch {
-          // ignore
-        }
-      }
-    } else {
-      setProvedores((prev) => {
-        const parsed = parseProvedoresCsv(text, prev, usinas);
-        if (parsed.length > 0) {
-          try {
-            localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(parsed));
-          } catch {
-            // ignore
-          }
-          return parsed;
-        }
-        return prev;
-      });
+  // Função disparada ao salvar alterações no modal de usinas
+  const handleUpdateUsinas = async (updatedList: UsinaConcessionaria[]) => {
+    // 1. Atualiza a tela imediatamente
+    setUsinas(updatedList);
+    try {
+      localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(updatedList));
+    } catch {
+      // ignore
     }
-  };
 
-  // Reset to prompt initial dataset
-  const handleResetToDefaults = () => {
-    setUsinas(initialUsinas);
-    setProvedores(initialProvedores);
-    localStorage.removeItem(USINAS_STORAGE_KEY);
-    localStorage.removeItem(PROVEDORES_STORAGE_KEY);
-    localStorage.removeItem('gdsun_usinas');
-    localStorage.removeItem('gdsun_provedores');
+    // 2. Localiza qual usina foi alterada comparando com o estado anterior
+    const itemModificado = updatedList.find((novaUsina, index) => {
+      const usinaAntiga = usinas[index];
+      if (!usinaAntiga) return false;
+      return (
+        novaUsina.razaoSocial !== usinaAntiga.razaoSocial ||
+        novaUsina.cnpj !== usinaAntiga.cnpj ||
+        novaUsina.codigoCliente !== usinaAntiga.codigoCliente ||
+        novaUsina.instalacaoAntiga !== usinaAntiga.instalacaoAntiga ||
+        novaUsina.instalacaoNova !== usinaAntiga.instalacaoNova ||
+        novaUsina.medidor !== usinaAntiga.medidor
+      );
+    });
+
+    if (!itemModificado) return;
+
+    // Encontra o índice correspondente na planilha (adiciona 2 para cabeçalho)
+    const indexNaLista = updatedList.findIndex(
+      (u) => (u.id && u.id === itemModificado.id) || u.nome === itemModificado.nome
+    );
+    const rowIndex = indexNaLista !== -1 ? indexNaLista + 2 : 2;
+
+    try {
+      // Envia os dados para a URL do seu Google Apps Script
+      await fetch(APPS_SCRIPT_WEBAPP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          _rowIndex: rowIndex,
+          razaoSocial: itemModificado.razaoSocial || '',
+          cnpj: itemModificado.cnpj || '',
+          codigoCliente: itemModificado.codigoCliente || '',
+          instalacaoAntiga: itemModificado.instalacaoAntiga || '',
+          instalacaoNova: itemModificado.instalacaoNova || '',
+          medidor: itemModificado.medidor || ''
+        })
+      });
+      console.log('Dados sincronizados com o Google Sheets na linha:', rowIndex);
+    } catch (err) {
+      console.error('Erro ao enviar dados para a planilha:', err);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased selection:bg-amber-500 selection:text-white">
-      
-      {/* Top Header Navigation */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -335,7 +288,6 @@ export default function App() {
         provedorCount={provedores.length}
       />
 
-      {/* Main Body */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activeTab === 'concessionarias' && (
           <ConcessionariasView 
@@ -343,14 +295,7 @@ export default function App() {
             searchQuery={searchQuery}
             selectedUsinaFilter={selectedUsinaFilter}
             setSelectedUsinaFilter={setSelectedUsinaFilter}
-            onUpdateUsinas={(updated) => {
-              setUsinas(updated);
-              try {
-                localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(updated));
-              } catch {
-                // ignore
-              }
-            }}
+            onUpdateUsinas={handleUpdateUsinas}
           />
         )}
 
@@ -369,7 +314,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Bottom Footer */}
       <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500 space-y-1 shadow-inner">
         <p className="font-semibold text-slate-700">
           GDSUN • Sistema de Gestão de Usinas e Provedores de Internet
