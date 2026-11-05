@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ProvedorInternet, UsinaConcessionaria } from '../types';
 import { findAddressForProvedorUsina } from '../utils/addressMatcher';
-import { getProvedorMasterInfo } from '../utils/provedoresMasterData';
 import { parseContacts } from '../utils/whatsapp';
 import { exportProvedoresToExcel } from '../utils/excelExporter';
 import { 
@@ -15,7 +14,6 @@ import {
   Check, 
   Filter, 
   Radio, 
-  Globe, 
   LayoutGrid,
   ListFilter,
   FileSpreadsheet
@@ -40,91 +38,69 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // List of unique Usinas across provedores for filter dropdown
+  // Lista de usinas únicas para o filtro
   const uniqueUsinasProvedores = useMemo(() => {
     const set = new Set<string>();
-    provedores.forEach((p) => {
-      if (p.usinaNome) set.add(p.usinaNome);
+    provedores.forEach((p: any) => {
+      const nome = p.usina || p.usinaNome;
+      if (nome && String(nome).trim() !== '') set.add(String(nome).trim());
     });
     return ['TODAS', ...Array.from(set).sort()];
   }, [provedores]);
 
-  // Map usina names to sigla for Provedores filter and headers
+  // Mapa de siglas das usinas
   const usinaSiglaMap = useMemo(() => {
     const map = new Map<string, string>();
     usinas.forEach((u) => {
-      if (u.usina) {
-        const sigla = u.siglaAntiga || u.siglaNova || '';
+      const nome = u.usina || u.nome || u.usinaNome;
+      if (nome) {
+        const sigla = u.siglaAntiga || u.siglaNova || u.sigla || '';
         if (sigla) {
-          map.set(u.usina.toLowerCase(), sigla);
+          map.set(nome.toLowerCase().trim(), sigla);
         }
       }
     });
     return map;
   }, [usinas]);
 
-  // Connection types dropdown
+  // Lista de tipos de conexão
   const tiposConexao = useMemo(() => {
     const set = new Set<string>();
     provedores.forEach((p) => {
-      if (p.tipoConexao) set.add(p.tipoConexao);
+      if (p.tipoConexao && p.tipoConexao.trim() !== '') set.add(p.tipoConexao.trim());
     });
     return ['TODOS', ...Array.from(set).sort()];
   }, [provedores]);
 
-  // Enrich provedores with auto-matched addresses and verified CNPJ / Razão Social
+  // Enriquece os dados lendo prioritariamente o que está na planilha
   const enrichedProvedores = useMemo(() => {
-    return provedores
-      .filter((p) => {
-        // Excluir Embratel de Ibotirama conforme solicitado (manter apenas ATInfo Telecom)
-        if (
-          p.usinaNome.toLowerCase().includes('ibotirama') &&
-          p.provedor.toLowerCase().includes('embratel')
-        ) {
-          return false;
-        }
-        return true;
-      })
-      .map((p) => {
-        const match = findAddressForProvedorUsina(p.usinaNome, usinas);
-        const masterInfo = getProvedorMasterInfo(p.usinaNome, usinas);
+    return provedores.map((p: any) => {
+      const nomeUsina = String(p.usina || p.usinaNome || '').trim();
+      const match = findAddressForProvedorUsina(nomeUsina, usinas);
 
-        const isApodi = p.usinaNome.toLowerCase().includes('apodi');
-        const isItuverava = p.usinaNome.toLowerCase().includes('ituverava');
+      // Prioridade: Endereço da Coluna H da aba Provedores -> Fallback para endereço da usina
+      const enderecoFinal = (p.endereco && p.endereco !== 'Endereço não informado' && p.endereco.trim() !== '')
+        ? p.endereco.trim()
+        : (match.endereco || 'Endereço não informado');
 
-        const resolvedRazaoSocial =
-          masterInfo.razaoSocial ||
-          (p.razaoSocial && p.razaoSocial.trim() !== '' && p.razaoSocial.toLowerCase() !== 'pendente'
-            ? p.razaoSocial
-            : '');
-
-        const resolvedCnpj =
-          masterInfo.cnpj ||
-          (p.cnpj && p.cnpj.trim() !== '' && p.cnpj.toLowerCase() !== 'pendente'
-            ? p.cnpj
-            : '');
-
-        const resolvedProvedor = isItuverava ? 'Starlink' : (p.provedor || masterInfo.provedorPadrao || 'Provedor Local');
-        const resolvedTipoConexao = isItuverava ? 'Satélite' : (p.tipoConexao || masterInfo.tipoConexao || 'Fibra');
-        const resolvedContato = isItuverava ? 'SEM PORTAL' : p.contatoProvedor;
-
-        return {
-          ...p,
-          provedor: resolvedProvedor,
-          contatoProvedor: resolvedContato,
-          razaoSocial: resolvedRazaoSocial || 'Pendente',
-          cnpj: resolvedCnpj || 'Pendente',
-          tipoConexao: resolvedTipoConexao,
-          enderecoUsina: match.endereco,
-          pontoReferenciaUsina: match.pontoReferencia,
-          ufUsina: match.uf,
-          googleMapsUrl: match.googleMapsUrl,
-          usinaMatchedName: match.usinaMatchedName
-        };
-      });
+      return {
+        ...p,
+        usinaNome: nomeUsina,
+        provedor: p.provedor || 'A Definir',
+        contatoProvedor: p.contatoProvedor || '-',
+        razaoSocial: p.razaoSocial && p.razaoSocial !== 'Pendente' ? p.razaoSocial : 'Não informada',
+        cnpj: p.cnpj && p.cnpj !== 'Pendente' ? p.cnpj : 'Não informado',
+        tipoConexao: p.tipoConexao || 'Fibra',
+        enderecoUsina: enderecoFinal,
+        pontoReferenciaUsina: match.pontoReferencia || '',
+        ufUsina: match.uf || '',
+        googleMapsUrl: match.googleMapsUrl || '',
+        usinaMatchedName: match.usinaMatchedName || ''
+      };
+    });
   }, [provedores, usinas]);
 
-  // Filtered provedores
+  // Filtros de pesquisa, usina e tipo de conexão
   const filteredProvedores = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     return enrichedProvedores.filter((item) => {
@@ -135,7 +111,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
       const matchTipo = selectedTipo === 'TODOS' || item.tipoConexao === selectedTipo;
 
       if (!matchUsina || !matchTipo) return false;
-
       if (!query) return true;
 
       return (
@@ -157,17 +132,15 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
 
   return (
     <div className="space-y-6">
-      
-      {/* Filter Bar - Light Theme */}
+      {/* Barra de Filtros */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          
           <div className="flex items-center space-x-2 text-xs font-bold text-slate-700">
             <Filter className="w-4 h-4 text-sky-600" />
             <span>Filtros Provedores:</span>
           </div>
 
-          {/* DEDICATED USINA FILTER FOR PROVEDORES */}
+          {/* Filtro de Usinas */}
           <div className="flex items-center space-x-1.5 bg-sky-50 border border-sky-300 rounded-xl px-2.5 py-1.5">
             <Building2 className="w-3.5 h-3.5 text-sky-700 shrink-0" />
             <label className="text-xs font-bold text-sky-900">Apenas Usina:</label>
@@ -188,7 +161,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
             </select>
           </div>
 
-          {/* Tipo de Conexão Filter */}
+          {/* Filtro de Tipo de Conexão */}
           <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
             <label className="text-xs font-semibold text-slate-600">Tipo Conexão:</label>
             <select
@@ -210,14 +183,14 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                 setSelectedUsinaFilter('TODAS');
                 setSelectedTipo('TODOS');
               }}
-              className="text-xs font-bold text-sky-700 hover:text-sky-900 bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 transition-colors"
+              className="text-xs font-bold text-sky-700 hover:text-sky-900 bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 transition-colors cursor-pointer"
             >
               Limpar Filtros
             </button>
           )}
         </div>
 
-        {/* Counter and View Mode Toggle & Export */}
+        {/* Contador, Exportação e Alternância de Visualização */}
         <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 border-t md:border-t-0 border-slate-200 pt-3 md:pt-0">
           <span className="text-xs text-slate-600 font-medium">
             Exibindo <strong className="text-sky-700 font-bold">{filteredProvedores.length}</strong> de {provedores.length} provedores
@@ -235,7 +208,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
           <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
             <button
               onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-all ${
+              className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-all cursor-pointer ${
                 viewMode === 'table' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -244,7 +217,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-all ${
+              className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-all cursor-pointer ${
                 viewMode === 'grid' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -255,7 +228,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
         </div>
       </div>
 
-      {/* Main Table / Grid View */}
+      {/* Tabela ou Grade de Cards */}
       {filteredProvedores.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3 shadow-xs">
           <Wifi className="w-12 h-12 text-slate-300 mx-auto" />
@@ -265,7 +238,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
           </p>
         </div>
       ) : viewMode === 'table' ? (
-        /* Table View - Light Theme */
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-800">
@@ -273,9 +245,9 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                 <tr>
                   <th className="py-3.5 px-4">Usina</th>
                   <th className="py-3.5 px-4">Provedor & Conexão</th>
-                  <th className="py-3.5 px-4">Contato Provedor (Col. C)</th>
+                  <th className="py-3.5 px-4">Contato Provedor</th>
                   <th className="py-3.5 px-4">Razão Social & CNPJ</th>
-                  <th className="py-3.5 px-4">Endereço da Usina (Mapeado)</th>
+                  <th className="py-3.5 px-4">Endereço da Usina</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-normal">
@@ -284,8 +256,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
 
                   return (
                     <tr key={p.id} className="hover:bg-sky-50/40 transition-colors group">
-                      
-                      {/* Usina */}
+                      {/* Coluna Usina */}
                       <td className="py-4 px-4 align-top">
                         <div className="font-extrabold text-slate-900 group-hover:text-sky-700 transition-colors text-xs">
                           {p.usinaNome}{usinaSiglaMap.get(p.usinaNome.toLowerCase()) ? ` (${usinaSiglaMap.get(p.usinaNome.toLowerCase())})` : ''}
@@ -297,11 +268,11 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         )}
                       </td>
 
-                      {/* Nome do Provedor & Tipo */}
+                      {/* Provedor & Conexão */}
                       <td className="py-4 px-4 align-top space-y-1">
                         <div className="font-bold text-sky-900 text-xs flex items-center gap-1.5">
                           <Wifi className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                          <span>{p.provedor || 'Provedor Local'}</span>
+                          <span>{p.provedor || 'A Definir'}</span>
                         </div>
                         <div className="inline-flex items-center gap-1 text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 font-medium">
                           <Radio className="w-2.5 h-2.5 text-sky-600" />
@@ -309,7 +280,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Contato Provedor (Botão WhatsApp direto) */}
+                      {/* Contato Provedor */}
                       <td className="py-4 px-4 align-top">
                         <div className="space-y-1.5">
                           {contacts.length > 0 ? (
@@ -321,7 +292,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-xs transition-all hover:scale-105 w-fit"
-                                    title="Clique para chamar no WhatsApp imediatamente"
+                                    title="Chamar no WhatsApp"
                                   >
                                     <MessageCircle className="w-3.5 h-3.5 fill-current shrink-0" />
                                     <span>Chamar no WhatsApp ({c.label})</span>
@@ -343,25 +314,25 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                               </div>
                             ))
                           ) : (
-                            <div className="text-slate-400 italic text-xs">Sem contato cadastrado</div>
+                            <div className="text-slate-400 italic text-xs">{p.contatoProvedor || '-'}</div>
                           )}
                         </div>
                       </td>
 
-                      {/* Razao Social & CNPJ */}
+                      {/* Razão Social & CNPJ */}
                       <td className="py-4 px-4 align-top space-y-1.5 max-w-xs">
                         <div className="font-bold text-slate-900 text-[11px] leading-tight">
-                          {p.razaoSocial || 'Pendente'}
+                          {p.razaoSocial}
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-mono text-[11px] text-sky-900 font-extrabold flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
                             <FileText className="w-3 h-3 text-sky-600 shrink-0" />
-                            <span>CNPJ: {p.cnpj || 'Pendente'}</span>
+                            <span>CNPJ: {p.cnpj}</span>
                           </span>
-                          {p.cnpj && (
+                          {p.cnpj && p.cnpj !== 'Não informado' && (
                             <button
                               onClick={() => copyToClipboard(p.cnpj, `cnpj-${p.id}`)}
-                              title="Copiar apenas o CNPJ"
+                              title="Copiar CNPJ"
                               className="inline-flex items-center gap-0.5 text-[10px] text-slate-600 hover:text-sky-700 font-semibold px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors cursor-pointer"
                             >
                               {copiedId === `cnpj-${p.id}` ? (
@@ -380,10 +351,10 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Endereço Puxado da Planilha Informações Gerais */}
+                      {/* Endereço da Usina */}
                       <td className="py-4 px-4 align-top space-y-1 max-w-xs">
                         <div className="text-slate-700 text-[11px] leading-snug line-clamp-2 font-medium" title={p.enderecoUsina}>
-                          {p.enderecoUsina || 'Endereço vinculado pendente'}
+                          {p.enderecoUsina}
                         </div>
                         {p.googleMapsUrl && (
                           <a
@@ -398,7 +369,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                           </a>
                         )}
                       </td>
-
                     </tr>
                   );
                 })}
@@ -407,7 +377,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
           </div>
         </div>
       ) : (
-        /* Grid Cards View - Light Theme */
+        /* Visualização em Cards */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProvedores.map((p) => {
             const contacts = parseContacts(p.contatoProvedor);
@@ -418,7 +388,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                 className="bg-white border border-slate-200 hover:border-sky-400 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-all group"
               >
                 <div>
-                  {/* Card Header */}
                   <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
                     <div>
                       <h3 className="font-extrabold text-slate-900 text-sm group-hover:text-sky-700 transition-colors">
@@ -427,7 +396,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                       <div className="flex items-center gap-2 mt-1">
                         <span className="font-bold text-sky-800 text-xs flex items-center gap-1">
                           <Wifi className="w-3.5 h-3.5 text-sky-600" />
-                          {p.provedor || 'Provedor'}
+                          {p.provedor}
                         </span>
                         <span className="text-slate-300">•</span>
                         <span className="text-[11px] text-slate-500 font-semibold">{p.tipoConexao}</span>
@@ -435,10 +404,8 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Card Body */}
                   <div className="pt-3 space-y-3 text-xs">
-                    
-                    {/* WhatsApp Action Area */}
+                    {/* Contato Provedor */}
                     <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
                         <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
@@ -459,16 +426,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                               <MessageCircle className="w-4 h-4 fill-current" />
                               <span>Chamar no WhatsApp ({c.label})</span>
                             </a>
-                          ) : c.url ? (
-                            <a
-                              key={idx}
-                              href={c.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs py-2 px-3 rounded-xl border border-slate-200 transition-colors"
-                            >
-                              <span>{c.label}</span>
-                            </a>
                           ) : (
                             <div
                               key={idx}
@@ -479,23 +436,23 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                           );
                         })
                       ) : (
-                        <div className="text-slate-400 italic text-xs">Sem número de contato</div>
+                        <div className="text-slate-400 italic text-xs">{p.contatoProvedor || '-'}</div>
                       )}
                     </div>
 
-                    {/* Razao Social & CNPJ */}
+                    {/* Razão Social & CNPJ */}
                     <div className="space-y-1">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
                         Razão Social & CNPJ
                       </div>
                       <div className="font-bold text-slate-900 text-xs">
-                        {p.razaoSocial || 'Pendente'}
+                        {p.razaoSocial}
                       </div>
                       <div className="flex items-center justify-between gap-1 pt-0.5">
                         <span className="font-mono text-[11px] text-sky-900 font-extrabold bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                          CNPJ: {p.cnpj || 'Pendente'}
+                          CNPJ: {p.cnpj}
                         </span>
-                        {p.cnpj && (
+                        {p.cnpj && p.cnpj !== 'Não informado' && (
                           <button
                             onClick={() => copyToClipboard(p.cnpj, `cnpj-card-${p.id}`)}
                             title="Copiar CNPJ"
@@ -517,26 +474,24 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Endereço Puxado Automaticamente */}
+                    {/* Endereço */}
                     <div className="space-y-1 pt-1 border-t border-slate-100">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center justify-between">
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-sky-600" />
-                          <span>Endereço (Info Gerais)</span>
+                          <span>Endereço da Usina</span>
                         </span>
                         {p.ufUsina && p.ufUsina !== '-' && (
                           <span className="text-sky-800 font-extrabold">{p.ufUsina}</span>
                         )}
                       </div>
                       <p className="text-slate-700 text-xs leading-relaxed font-medium">
-                        {p.enderecoUsina || 'Endereço em processamento'}
+                        {p.enderecoUsina}
                       </p>
                     </div>
-
                   </div>
                 </div>
 
-                {/* Card Footer */}
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-end text-xs">
                   <button
                     onClick={() =>
@@ -545,7 +500,7 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                         `prov-${p.id}`
                       )
                     }
-                    className="flex items-center gap-1 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors font-medium"
+                    className="flex items-center gap-1 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors font-medium cursor-pointer"
                   >
                     {copiedId === `prov-${p.id}` ? (
                       <>
@@ -560,7 +515,6 @@ export const ProvedoresView: React.FC<ProvedoresViewProps> = ({
                     )}
                   </button>
                 </div>
-
               </div>
             );
           })}
