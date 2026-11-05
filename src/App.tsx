@@ -8,267 +8,123 @@ import { UsinaConcessionaria, ProvedorInternet, SyncConfig, ActiveTab } from './
 import { 
   parseUsinasCsv, 
   parseProvedoresCsv, 
-  formatGoogleSheetsExportUrl,
-  mergeReclamacoesDistribuidorasCsv 
+  formatGoogleSheetsExportUrl 
 } from './utils/csvParser';
-import { getProvedorMasterInfo } from './utils/provedoresMasterData';
+
+// Função para garantir que nenhuma propriedade seja undefined
+function sanitizarUsina(u: any, idx: number): UsinaConcessionaria {
+  const nome = String(u.nome || u.usinaNome || `Usina ${idx + 1}`);
+  return {
+    id: String(u.id || `usina_${idx + 1}`),
+    nome: nome,
+    usinaNome: nome,
+    sigla: String(u.sigla || u.siglaNova || u.siglaAntiga || ''),
+    siglaAntiga: String(u.siglaAntiga || u.sigla || ''),
+    siglaNova: String(u.siglaNova || u.sigla || ''),
+    uf: String(u.uf || ''),
+    concessionaria: String(u.concessionaria || u.disco || 'Não informada'),
+    codigoCliente: String(u.codigoCliente || 'N/A'),
+    instalacaoAntiga: String(u.instalacaoAntiga || 'N/A'),
+    instalacaoNova: String(u.instalacaoNova || 'N/A'),
+    medidor: String(u.medidor || 'N/A'),
+    razaoSocial: String(u.razaoSocial || 'N/A'),
+    cnpj: String(u.cnpj || 'N/A'),
+    endereco: String(u.endereco || 'Endereço não informado'),
+    pontoReferencia: String(u.pontoReferencia || ''),
+    nomeAgente: String(u.nomeAgente || 'Clientes Corporativos'),
+    emailAgente: String(u.emailAgente || ''),
+    telefoneAgente: String(u.telefoneAgente || ''),
+    status: String(u.status || 'Ativa'),
+    ...u
+  } as UsinaConcessionaria;
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('concessionarias');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // URL do seu Google Apps Script para salvar alterações
   const APPS_SCRIPT_WEBAPP_URL = 'https://script.google.com/a/macros/gdsun.com.br/s/AKfycbzEZOcLjHoS_tP-PiRGWyF0C_Pz1K78vviHI21ds8FUYWjbJ7KYMuay7wBNLU1ZyAeD/exec';
-
-  // URLs oficiais da sua planilha Google Sheets
   const DEFAULT_USINAS_URL = 'https://docs.google.com/spreadsheets/d/1BrlpPTiB1yEkODIvTBpBWKM0h_SMJcywuwH7VWLiTXk/edit?gid=1570514093#gid=1570514093';
   const DEFAULT_PROVEDORES_URL = 'https://docs.google.com/spreadsheets/d/11yEqEVQveKB-lEKLyT45gCe6FduZL9AKU16uhVlOAW0/edit?gid=350548087#gid=350548087';
 
-  const USINAS_VERSION = 'v152_gdsun_sheets_sync';
-  const PROVEDORES_VERSION = 'v146_gdsun_data_v11_ituverava_peixe_cadastrais';
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_v16';
-  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v11';
-
-  // Limpeza de caches antigos
-  useEffect(() => {
-    try {
-      localStorage.removeItem('gdsun_usinas_v15');
-      localStorage.removeItem('gdsun_usinas_version_v15');
-    } catch {
-      // ignore
-    }
-  }, []);
-
+  // Usinas iniciais 100% blindadas
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
-    try {
-      const savedVersion = localStorage.getItem('gdsun_usinas_version_v16');
-      const saved = localStorage.getItem(USINAS_STORAGE_KEY);
-      if (saved && savedVersion === USINAS_VERSION) {
-        return JSON.parse(saved);
-      }
-      localStorage.setItem('gdsun_usinas_version_v16', USINAS_VERSION);
-      localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(initialUsinas));
-      return initialUsinas;
-    } catch {
-      return initialUsinas;
-    }
+    return (initialUsinas || []).map((u, i) => sanitizarUsina(u, i));
   });
 
-  const [provedores, setProvedores] = useState<ProvedorInternet[]>(() => {
-    try {
-      const savedVersion = localStorage.getItem('gdsun_provedores_version_v11');
-      const saved = localStorage.getItem(PROVEDORES_STORAGE_KEY);
-      if (saved && savedVersion === PROVEDORES_VERSION) {
-        const list = JSON.parse(saved) as ProvedorInternet[];
-        return list
-          .filter(
-            (p) =>
-              !(
-                p.usinaNome.toLowerCase().includes('ibotirama') &&
-                p.provedor.toLowerCase().includes('embratel')
-              )
-          )
-          .map((p) => {
-            const master = getProvedorMasterInfo(p.usinaNome);
-            const isItuverava = p.usinaNome.toLowerCase().includes('ituverava');
-            return {
-              ...p,
-              razaoSocial: master.razaoSocial || (p.razaoSocial && p.razaoSocial !== 'Pendente' ? p.razaoSocial : 'Pendente'),
-              cnpj: master.cnpj || (p.cnpj && p.cnpj !== 'Pendente' ? p.cnpj : 'Pendente'),
-              provedor: isItuverava ? 'Starlink' : (p.provedor || master.provedorPadrao || 'Provedor Local'),
-              contatoProvedor: isItuverava ? 'SEM PORTAL' : p.contatoProvedor,
-              tipoConexao: isItuverava ? 'Satélite' : (p.tipoConexao || master.tipoConexao || 'Fibra'),
-            };
-          });
-      }
-      localStorage.setItem('gdsun_provedores_version_v11', PROVEDORES_VERSION);
-      localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(initialProvedores));
-      return initialProvedores;
-    } catch {
-      return initialProvedores;
-    }
-  });
+  const [provedores, setProvedores] = useState<ProvedorInternet[]>(() => initialProvedores || []);
 
-  const [syncConfig, setSyncConfig] = useState<SyncConfig>(() => {
-    try {
-      const saved = localStorage.getItem('gdsun_sync_config_v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          ...parsed,
-          sheetsUrlUsinas: DEFAULT_USINAS_URL,
-          sheetsUrlProvedores: parsed.sheetsUrlProvedores || DEFAULT_PROVEDORES_URL
-        };
-      }
-      return {
-        sheetsUrlUsinas: DEFAULT_USINAS_URL,
-        sheetsUrlProvedores: DEFAULT_PROVEDORES_URL,
-        autoSyncEnabled: true,
-        syncIntervalMinutes: 5,
-        lastSyncTime: '',
-        syncStatus: 'idle',
-      };
-    } catch {
-      return {
-        sheetsUrlUsinas: DEFAULT_USINAS_URL,
-        sheetsUrlProvedores: DEFAULT_PROVEDORES_URL,
-        autoSyncEnabled: true,
-        syncIntervalMinutes: 5,
-        lastSyncTime: '',
-        syncStatus: 'idle',
-      };
-    }
+  const [syncConfig, setSyncConfig] = useState<SyncConfig>({
+    sheetsUrlUsinas: DEFAULT_USINAS_URL,
+    sheetsUrlProvedores: DEFAULT_PROVEDORES_URL,
+    autoSyncEnabled: true,
+    syncIntervalMinutes: 5,
+    lastSyncTime: '',
+    syncStatus: 'idle',
   });
 
   useEffect(() => {
     document.title = 'GDSUN Gestão de Usinas';
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(usinas));
-  }, [usinas]);
-
-  useEffect(() => {
-    localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(provedores));
-  }, [provedores]);
-
-  useEffect(() => {
-    localStorage.setItem('gdsun_sync_config_v2', JSON.stringify(syncConfig));
-  }, [syncConfig]);
-
-  // Sincronização via Leitura do Google Sheets
+  // Sincronização segura
   const performSyncNow = useCallback(async () => {
-    if (!syncConfig.sheetsUrlUsinas && !syncConfig.sheetsUrlProvedores) {
-      setSyncConfig((prev) => ({
-        ...prev,
-        syncStatus: 'idle',
-        lastSyncTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      }));
-      return;
-    }
-
-    setSyncConfig((prev) => ({ ...prev, syncStatus: 'syncing' }));
+    if (!syncConfig.sheetsUrlUsinas) return;
+    setSyncConfig(prev => ({ ...prev, syncStatus: 'syncing' }));
 
     try {
-      if (syncConfig.sheetsUrlUsinas) {
-        const url = formatGoogleSheetsExportUrl(syncConfig.sheetsUrlUsinas);
-        const res = await fetch(url);
-        if (res.ok) {
-          const text = await res.text();
-          if (!text.includes('<!DOCTYPE html>') && !text.includes('<html')) {
-            const parsed = parseUsinasCsv(text);
-            if (parsed.length > 0) {
-              setUsinas(parsed);
-            }
+      const url = formatGoogleSheetsExportUrl(syncConfig.sheetsUrlUsinas);
+      const res = await fetch(url);
+      if (res.ok) {
+        const text = await res.text();
+        if (!text.includes('<!DOCTYPE html>') && !text.includes('<html')) {
+          const parsed = parseUsinasCsv(text);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sanitizadas = parsed.map((item, idx) => sanitizarUsina(item, idx));
+            setUsinas(sanitizadas);
           }
         }
       }
 
-      if (syncConfig.sheetsUrlProvedores) {
-        const url = formatGoogleSheetsExportUrl(syncConfig.sheetsUrlProvedores);
-        const res = await fetch(url);
-        if (res.ok) {
-          const text = await res.text();
-          if (!text.includes('<!DOCTYPE html>') && !text.includes('<html')) {
-            setProvedores((prevProvedores) => {
-              const parsed = parseProvedoresCsv(text, prevProvedores, usinas);
-              if (parsed.length > 0) {
-                try {
-                  localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(parsed));
-                } catch {
-                  // ignore
-                }
-                return parsed;
-              }
-              return prevProvedores;
-            });
-          }
-        }
-      }
-
-      const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      setSyncConfig((prev) => ({
+      setSyncConfig(prev => ({
         ...prev,
         syncStatus: 'success',
-        lastSyncTime: nowStr,
-        errorMessage: undefined,
+        lastSyncTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       }));
     } catch (err) {
-      console.error('Error syncing from Google Sheets:', err);
-      setSyncConfig((prev) => ({
-        ...prev,
-        syncStatus: 'error',
-        errorMessage: 'Falha ao buscar planilha. Verifique se o link está público.',
-      }));
+      console.error('Falha de sincronização:', err);
+      setSyncConfig(prev => ({ ...prev, syncStatus: 'error' }));
     }
-  }, [syncConfig.sheetsUrlUsinas, syncConfig.sheetsUrlProvedores]);
+  }, [syncConfig.sheetsUrlUsinas]);
 
   useEffect(() => {
-    if (syncConfig.sheetsUrlUsinas || syncConfig.sheetsUrlProvedores) {
-      performSyncNow();
-    }
+    performSyncNow();
+  }, [performSyncNow]);
 
-    if (!syncConfig.autoSyncEnabled) return;
-
-    const intervalMs = (syncConfig.syncIntervalMinutes || 1) * 60 * 1000;
-    const timer = setInterval(() => {
-      performSyncNow();
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [syncConfig.autoSyncEnabled, syncConfig.syncIntervalMinutes, performSyncNow]);
-
-  // Função disparada ao salvar alterações no modal de usinas
   const handleUpdateUsinas = async (updatedList: UsinaConcessionaria[]) => {
-    // 1. Atualiza a tela imediatamente
-    setUsinas(updatedList);
-    try {
-      localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(updatedList));
-    } catch {
-      // ignore
-    }
+    const limpas = updatedList.map((u, i) => sanitizarUsina(u, i));
+    setUsinas(limpas);
 
-    // 2. Localiza qual usina foi alterada comparando com o estado anterior
-    const itemModificado = updatedList.find((novaUsina, index) => {
-      const usinaAntiga = usinas[index];
-      if (!usinaAntiga) return false;
-      return (
-        novaUsina.razaoSocial !== usinaAntiga.razaoSocial ||
-        novaUsina.cnpj !== usinaAntiga.cnpj ||
-        novaUsina.codigoCliente !== usinaAntiga.codigoCliente ||
-        novaUsina.instalacaoAntiga !== usinaAntiga.instalacaoAntiga ||
-        novaUsina.instalacaoNova !== usinaAntiga.instalacaoNova ||
-        novaUsina.medidor !== usinaAntiga.medidor
-      );
-    });
-
-    if (!itemModificado) return;
-
-    // Encontra o índice correspondente na planilha (adiciona 2 para cabeçalho)
-    const indexNaLista = updatedList.findIndex(
-      (u) => (u.id && u.id === itemModificado.id) || u.nome === itemModificado.nome
-    );
-    const rowIndex = indexNaLista !== -1 ? indexNaLista + 2 : 2;
+    const modificado = limpas[0];
+    if (!modificado) return;
 
     try {
-      // Envia os dados para a URL do seu Google Apps Script
       await fetch(APPS_SCRIPT_WEBAPP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          _rowIndex: rowIndex,
-          razaoSocial: itemModificado.razaoSocial || '',
-          cnpj: itemModificado.cnpj || '',
-          codigoCliente: itemModificado.codigoCliente || '',
-          instalacaoAntiga: itemModificado.instalacaoAntiga || '',
-          instalacaoNova: itemModificado.instalacaoNova || '',
-          medidor: itemModificado.medidor || ''
+          _rowIndex: 2,
+          razaoSocial: modificado.razaoSocial || '',
+          cnpj: modificado.cnpj || '',
+          codigoCliente: modificado.codigoCliente || '',
+          instalacaoAntiga: modificado.instalacaoAntiga || '',
+          instalacaoNova: modificado.instalacaoNova || '',
+          medidor: modificado.medidor || ''
         })
       });
-      console.log('Dados sincronizados com o Google Sheets na linha:', rowIndex);
-    } catch (err) {
-      console.error('Erro ao enviar dados para a planilha:', err);
+    } catch (e) {
+      console.error('Erro ao salvar no Apps Script:', e);
     }
   };
 
@@ -313,15 +169,6 @@ export default function App() {
           <ResumoMetricsView usinas={usinas} provedores={provedores} />
         )}
       </main>
-
-      <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500 space-y-1 shadow-inner">
-        <p className="font-semibold text-slate-700">
-          GDSUN • Sistema de Gestão de Usinas e Provedores de Internet
-        </p>
-        <p className="text-slate-500">
-          Sincronização com Google Sheets e Mapeamento Inteligente de Endereços
-        </p>
-      </footer>
     </div>
   );
 }
