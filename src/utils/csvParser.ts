@@ -22,7 +22,7 @@ export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
     const rawRows = resultRaw.data || [];
     if (rawRows.length < 2) return [];
 
-    const headers = rawRows[0].map(h => normalizeKey(h));
+    const headers = (rawRows[0] || []).map((h) => normalizeKey(String(h || '')));
     const usinas: UsinaConcessionaria[] = [];
 
     for (let i = 1; i < rawRows.length; i++) {
@@ -31,12 +31,12 @@ export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
 
       const getVal = (colIdx: number, ...searchTerms: string[]): string => {
         for (const term of searchTerms) {
-          const foundIdx = headers.findIndex(h => h.includes(term));
-          if (foundIdx !== -1 && cols[foundIdx] !== undefined && cols[foundIdx].trim() !== '') {
-            return cols[foundIdx].trim();
+          const foundIdx = headers.findIndex((h) => h.includes(term));
+          if (foundIdx !== -1 && cols[foundIdx] !== undefined && String(cols[foundIdx]).trim() !== '') {
+            return String(cols[foundIdx]).trim();
           }
         }
-        return cols[colIdx] ? cols[colIdx].trim() : '';
+        return cols[colIdx] ? String(cols[colIdx]).trim() : '';
       };
 
       const nomeUsina = getVal(1, 'usina', 'nome') || `Usina ${i}`;
@@ -54,18 +54,17 @@ export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
 
       usinas.push({
         id: `usina_${i}`,
-        nome: nomeUsina,
-        usinaNome: nomeUsina,
-        sigla: sigla,
-        uf: uf,
-        concessionaria: concessionaria,
-        codigoCliente: codigoCliente,
-        instalacaoAntiga: instalacaoAntiga,
-        instalacaoNova: instalacaoNova,
-        medidor: medidor,
-        razaoSocial: razaoSocial,
-        cnpj: cnpj,
-        // Campos padrão de segurança para não quebrar a tela:
+        nome: String(nomeUsina || ''),
+        usinaNome: String(nomeUsina || ''),
+        sigla: String(sigla || ''),
+        uf: String(uf || ''),
+        concessionaria: String(concessionaria || 'Não informada'),
+        codigoCliente: String(codigoCliente || 'N/A'),
+        instalacaoAntiga: String(instalacaoAntiga || 'N/A'),
+        instalacaoNova: String(instalacaoNova || 'N/A'),
+        medidor: String(medidor || 'N/A'),
+        razaoSocial: String(razaoSocial || 'N/A'),
+        cnpj: String(cnpj || 'N/A'),
         endereco: 'Endereço não informado',
         pontoReferencia: '',
         nomeAgente: 'Clientes Corporativos',
@@ -106,12 +105,12 @@ export function parseProvedoresCsv(
 
       return {
         id: `provedor_${index + 1}`,
-        usinaNome: nome,
-        provedor: norm['provedor'] || master.provedorPadrao || 'Provedor Local',
-        tipoConexao: norm['tipoconexao'] || master.tipoConexao || 'Fibra',
-        contatoProvedor: norm['contatoprovedor'] || norm['contato'] || 'Pendente',
-        razaoSocial: norm['razaosocial'] || master.razaoSocial || 'Pendente',
-        cnpj: norm['cnpj'] || master.cnpj || 'Pendente',
+        usinaNome: String(nome || ''),
+        provedor: String(norm['provedor'] || master.provedorPadrao || 'Provedor Local'),
+        tipoConexao: String(norm['tipoconexao'] || master.tipoConexao || 'Fibra'),
+        contatoProvedor: String(norm['contatoprovedor'] || norm['contato'] || 'Pendente'),
+        razaoSocial: String(norm['razaosocial'] || master.razaoSocial || 'Pendente'),
+        cnpj: String(norm['cnpj'] || master.cnpj || 'Pendente'),
       } as unknown as ProvedorInternet;
     });
   } catch (err) {
