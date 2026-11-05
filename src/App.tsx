@@ -6,7 +6,7 @@ import { ResumoMetricsView } from './components/ResumoMetricsView';
 import { initialUsinas, initialProvedores } from './data/initialData';
 import { UsinaConcessionaria, ProvedorInternet, SyncConfig, ActiveTab } from './types';
 
-// Parser CSV nativo embutido (elimina dependência do papaparse e evita erro de build na Vercel)
+// Parser CSV nativo embutido (sem dependência externa)
 function parseCsvLinhas(text: string): string[][] {
   const lines: string[][] = [];
   let row: string[] = [];
@@ -50,18 +50,23 @@ function parseCsvLinhas(text: string): string[][] {
   return lines;
 }
 
-// Sanitização robusta para Usinas (endereço mapeado para a coluna R / índice 17)
+// Sanitização de Usinas: mapeamento apenas do e-mail da Coluna O (índice 14) e endereço da Coluna R (índice 17)
 function sanitizarUsina(row: any, idx: number): UsinaConcessionaria {
   const isArr = Array.isArray(row);
   const nome = String((isArr ? row[1] : (row.nome || row.usina || row['Usina'])) || `Usina ${idx + 1}`).trim();
 
-  // Coluna R = índice 17 no array base 0
-  const enderecoPlanilha = isArr 
+  // Coluna O (índice 14): apenas o e-mail do agente
+  const emailCol = isArr 
+    ? (row[14] || '') 
+    : (row['E-mail Agente Relacionamento'] || row['emailAgente'] || row['emailAgenteRelacionamento'] || '');
+  const emailFinal = String(emailCol).trim();
+
+  // Coluna R (índice 17): Endereço da Usina
+  const enderecoCol = isArr 
     ? (row[17] || '') 
     : (row['Endereço'] || row['Endereco'] || row['ENDEREÇO'] || row['Endereço da Usina'] || '');
-
-  const enderecoFinal = String(enderecoPlanilha).trim() !== '' 
-    ? String(enderecoPlanilha).trim() 
+  const enderecoFinal = String(enderecoCol).trim() !== '' 
+    ? String(enderecoCol).trim() 
     : 'Endereço não informado';
 
   return {
@@ -88,14 +93,14 @@ function sanitizarUsina(row: any, idx: number): UsinaConcessionaria {
     pontoReferencia: '',
     nomeAgente: 'Clientes Corporativos',
     nomeAgenteRelacionamento: 'Clientes Corporativos',
-    emailAgente: '',
-    emailAgenteRelacionamento: '',
+    emailAgente: emailFinal,
+    emailAgenteRelacionamento: emailFinal,
     telefoneAgente: '',
     status: 'Ativa'
   } as UsinaConcessionaria;
 }
 
-// Sanitização robusta para Provedores (A=0:ID, B=1:Usina, C=2:Razão Social, D=3:CNPJ, E=4:Provedor, F=5:Contato, G=6:Conexão, H=7:Endereço)
+// Sanitização de Provedores
 function sanitizarProvedor(row: any[], idx: number): ProvedorInternet {
   return {
     id: String(row[0] || `p-${idx + 1}`).trim(),
@@ -123,9 +128,9 @@ export default function App() {
   const USINAS_GID = '1570514093';
   const PROVEDORES_GID = '1710018109'; 
 
-  // Versão de storage incrementada para descarregar o cache antigo e exibir os novos endereços
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_final_v71_colR';
-  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_final_v71_colR';
+  // Chave de armazenamento atualizada para puxar o e-mail da coluna O limpo
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_v73_apenas_email_colO';
+  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v73_apenas_email_colO';
 
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
