@@ -5,11 +5,53 @@ import { ProvedoresView } from './components/ProvedoresView';
 import { ResumoMetricsView } from './components/ResumoMetricsView';
 import { initialUsinas, initialProvedores } from './data/initialData';
 import { UsinaConcessionaria, ProvedorInternet, SyncConfig, ActiveTab } from './types';
-import Papa from 'papaparse';
+
+// Parser CSV nativo embutido (elimina dependência do papaparse e evita erro de build na Vercel)
+function parseCsvLinhas(text: string): string[][] {
+  const lines: string[][] = [];
+  let row: string[] = [];
+  let cur = '';
+  let insideQuote = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i + 1];
+
+    if (c === '"') {
+      if (insideQuote && next === '"') {
+        cur += '"';
+        i++;
+      } else {
+        insideQuote = !insideQuote;
+      }
+    } else if (c === ',' && !insideQuote) {
+      row.push(cur.trim());
+      cur = '';
+    } else if ((c === '\r' || c === '\n') && !insideQuote) {
+      if (c === '\r' && next === '\n') i++;
+      row.push(cur.trim());
+      if (row.some((cell) => cell.length > 0)) {
+        lines.push(row);
+      }
+      row = [];
+      cur = '';
+    } else {
+      cur += c;
+    }
+  }
+
+  if (cur.length > 0 || row.length > 0) {
+    row.push(cur.trim());
+    if (row.some((cell) => cell.length > 0)) {
+      lines.push(row);
+    }
+  }
+
+  return lines;
+}
 
 // Sanitização robusta para Usinas
 function sanitizarUsina(row: any, idx: number): UsinaConcessionaria {
-  // Lê tanto por array posicional quanto por chave de objeto
   const isArr = Array.isArray(row);
   const nome = String((isArr ? row[1] : (row.nome || row.usina || row['Usina'])) || `Usina ${idx + 1}`).trim();
 
@@ -44,8 +86,8 @@ function sanitizarUsina(row: any, idx: number): UsinaConcessionaria {
   } as UsinaConcessionaria;
 }
 
-// Sanitização robusta para Provedores por Posição de Coluna (A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7)
-function sanitizarProvedorPosicional(row: any[], idx: number): ProvedorInternet {
+// Sanitização robusta para Provedores (A=0:ID, B=1:Usina, C=2:Razão Social, D=3:CNPJ, E=4:Provedor, F=5:Contato, G=6:Conexão, H=7:Endereço)
+function sanitizarProvedor(row: any[], idx: number): ProvedorInternet {
   return {
     id: String(row[0] || `p-${idx + 1}`).trim(),
     usina: String(row[1] || `Usina ${idx + 1}`).trim(),
@@ -65,16 +107,15 @@ function sanitizarProvedorPosicional(row: any[], idx: number): ProvedorInternet 
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('provedores');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('concessionarias');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
   const USINAS_GID = '1570514093';
   const PROVEDORES_GID = '1710018109'; 
 
-  // Força nova chave de cache para limpar dados desatualizados
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_clean_v60';
-  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_clean_v60';
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_final_v70';
+  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_final_v70';
 
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
@@ -95,4 +136,117 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-    return (
+    return (initialProvedores || []);
+  });
+
+  const [syncConfig, setSyncConfig] = useState<SyncConfig>({
+    sheetsUrlUsinas: '',
+    sheetsUrlProvedores: '',
+    autoSyncEnabled: true,
+    syncIntervalMinutes: 5,
+    lastSyncTime: '',
+    syncStatus: 'idle',
+  });
+
+  useEffect(() => {
+    document.title = 'GDSUN Gestão de Usinas';
+  }, []);
+
+  const performSyncNow = useCallback(async () => {
+    setSyncConfig((prev) => ({ ...prev, syncStatus: 'syncing' }));
+
+    try {
+      // 1. Download direto Usinas (gid=1570514093)
+      const gvizUsinas = `https://docs.google.com/spreadsheets/d/1BrlpPTiB1yEkODIvTBpBWKM0h_SMJcywuwH7VWLiTXk/gviz/tq?tqx=out:csv&gid=${USINAS_GID}&t=${Date.now()}`;
+      const resU = await fetch(gvizUsinas);
+      if (resU.ok) {
+        const csvU = await resU.text();
+        const parsedU = parseCsvLinhas(csvU);
+        if (parsedU.length > 1) {
+          const listU = parsedU
+            .slice(1)
+            .filter((r) => r[1] && r[1].trim() !== '')
+            .map((item, idx) => sanitizarUsina(item, idx));
+          if (listU.length > 0) {
+            setUsinas(listU);
+            try { localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(listU)); } catch {}
+          }
+        }
+      }
+
+      // 2. Download direto Provedores (gid=1710018109)
+      const gvizProvedores = `https://docs.google.com/spreadsheets/d/1BrlpPTiB1yEkODIvTBpBWKM0h_SMJcywuwH7VWLiTXk/gviz/tq?tqx=out:csv&gid=${PROVEDORES_GID}&t=${Date.now()}`;
+      const resP = await fetch(gvizProvedores);
+      if (resP.ok) {
+        const csvP = await resP.text();
+        const parsedP = parseCsvLinhas(csvP);
+        if (parsedP.length > 1) {
+          const listP = parsedP
+            .slice(1)
+            .filter((r) => r[1] && r[1].trim() !== '')
+            .map((item, idx) => sanitizarProvedor(item, idx));
+          if (listP.length > 0) {
+            setProvedores(listP);
+            try { localStorage.setItem(PROVEDORES_STORAGE_KEY, JSON.stringify(listP)); } catch {}
+          }
+        }
+      }
+
+      setSyncConfig((prev) => ({
+        ...prev,
+        syncStatus: 'success',
+        lastSyncTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      }));
+    } catch (err) {
+      console.error('Falha ao sincronizar:', err);
+      setSyncConfig((prev) => ({ ...prev, syncStatus: 'error' }));
+    }
+  }, [PROVEDORES_GID, USINAS_GID]);
+
+  useEffect(() => {
+    performSyncNow();
+  }, [performSyncNow]);
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased selection:bg-amber-500 selection:text-white">
+      <Navbar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        selectedUsinaFilter={selectedUsinaFilter}
+        setSelectedUsinaFilter={setSelectedUsinaFilter}
+        syncConfig={syncConfig}
+        onRefreshNow={performSyncNow}
+        usinas={usinas}
+        usinaCount={usinas.length}
+        provedorCount={provedores.length}
+      />
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {activeTab === 'concessionarias' && (
+          <ConcessionariasView 
+            usinas={usinas} 
+            searchQuery={searchQuery}
+            selectedUsinaFilter={selectedUsinaFilter}
+            setSelectedUsinaFilter={setSelectedUsinaFilter}
+          />
+        )}
+
+        {activeTab === 'provedores' && (
+          <ProvedoresView 
+            provedores={provedores} 
+            usinas={usinas} 
+            searchQuery={searchQuery}
+            selectedUsinaFilter={selectedUsinaFilter}
+            setSelectedUsinaFilter={setSelectedUsinaFilter}
+          />
+        )}
+
+        {activeTab === 'resumo' && (
+          <ResumoMetricsView usinas={usinas} provedores={provedores} />
+        )}
+      </main>
+    </div>
+  );
+}
