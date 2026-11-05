@@ -5,6 +5,7 @@ import { ProvedoresView } from './components/ProvedoresView';
 import { ResumoMetricsView } from './components/ResumoMetricsView';
 import { initialUsinas, initialProvedores } from './data/initialData';
 import { UsinaConcessionaria, ProvedorInternet, SyncConfig, ActiveTab } from './types';
+import { parseUsinasCsv, parseProvedoresCsv } from './utils/csvParser';
 
 // Função para garantir que nenhum campo chegue como undefined ou quebre o site
 function sanitizarUsina(u: any, idx: number): UsinaConcessionaria {
@@ -46,13 +47,14 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // URL do Google Apps Script para leitura e gravação direta
+  // URL do Google Apps Script (usada no salvamento via POST)
   const APPS_SCRIPT_WEBAPP_URL = 'https://script.google.com/a/macros/gdsun.com.br/s/AKfycbzEZOcLjHoS_tP-PiRGWyF0C_Pz1K78vviHI21ds8FUYWjbJ7KYMuay7wBNLU1ZyAeD/exec';
   const DEFAULT_USINAS_URL = 'https://docs.google.com/spreadsheets/d/1BrlpPTiB1yEkODIvTBpBWKM0h_SMJcywuwH7VWLiTXk/edit?gid=1570514093#gid=1570514093';
   const DEFAULT_PROVEDORES_URL = 'https://docs.google.com/spreadsheets/d/11yEqEVQveKB-lEKLyT45gCe6FduZL9AKU16uhVlOAW0/edit?gid=350548087#gid=350548087';
 
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_direct_v25';
-  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_direct_v25';
+  // Nova chave de armazenamento para descartar dados antigos retidos
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_csv_direct_v30';
+  const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_csv_direct_v30';
 
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
@@ -82,47 +84,26 @@ export default function App() {
     document.title = 'GDSUN Gestão de Usinas';
   }, []);
 
-  // Sincronização direta via JSON da API do Apps Script
+  // Sincronização via exportação CSV direta (ignora o bloqueio de CORS do Google Apps Script)
   const performSyncNow = useCallback(async () => {
     setSyncConfig((prev) => ({ ...prev, syncStatus: 'syncing' }));
 
     try {
-      const res = await fetch(APPS_SCRIPT_WEBAPP_URL);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const usinasFormatadas = data.map((item: any, idx: number) => {
-            const nomeUsina = item['Usina'] || item.nome || item.usinaNome || `Usina ${idx + 1}`;
-            return sanitizarUsina({
-              id: `usina_${idx + 1}`,
-              _rowIndex: item._rowIndex || idx + 2,
-              nome: nomeUsina,
-              usina: nomeUsina,
-              usinaNome: nomeUsina,
-              sigla: item['Sigla Nova'] || item['Sigla Antiga'] || item.sigla || '',
-              siglaAntiga: item['Sigla Antiga'] || '',
-              siglaNova: item['Sigla Nova'] || '',
-              uf: item['UF'] || '',
-              concessionaria: item['Concessionária (DisCo)'] || item.concessionaria || 'Não informada',
-              codigoCliente: item['Código Cliente'] || 'N/A',
-              instalacaoAntiga: item['Código Instalação Antiga (UG)'] || 'N/A',
-              codigoInstalacaoAntigaUG: item['Código Instalação Antiga (UG)'] || 'N/A',
-              instalacaoNova: item['Código Instalação Nova'] || item['Código Instalação Nova (U Medidor'] || 'N/A',
-              codigoInstalacaoNovaUG: item['Código Instalação Nova'] || item['Código Instalação Nova (U Medidor'] || 'N/A',
-              medidor: item['Medidor'] || 'N/A',
-              razaoSocial: item['Razão Social Cliente'] || 'N/A',
-              razaoSocialCliente: item['Razão Social Cliente'] || 'N/A',
-              cnpj: item['CNPJ Cliente'] || 'N/A',
-              cnpjCliente: item['CNPJ Cliente'] || 'N/A',
-              endereco: 'Endereço não informado',
-              status: 'Ativa'
-            }, idx);
-          });
+      // 1. Exportação direta da aba Concessionarias_e_Usinas (gid=1570514093)
+      const csvUrl = 'https://docs.google.com/spreadsheets/d/1BrlpPTiB1yEkODIvTBpBWKM0h_SMJcywuwH7VWLiTXk/export?format=csv&gid=1570514093';
+      const res = await fetch(csvUrl);
 
-          setUsinas(usinasFormatadas);
-          try {
-            localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(usinasFormatadas));
-          } catch {}
+      if (res.ok) {
+        const csvText = await res.text();
+        if (!csvText.includes('<!DOCTYPE html>') && !csvText.includes('<html')) {
+          const parsed = parseUsinasCsv(csvText);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sanitizadas = parsed.map((item, idx) => sanitizarUsina(item, idx));
+            setUsinas(sanitizadas);
+            try {
+              localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(sanitizadas));
+            } catch {}
+          }
         }
       }
 
@@ -132,16 +113,16 @@ export default function App() {
         lastSyncTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       }));
     } catch (err) {
-      console.error('Falha ao carregar dados do Apps Script:', err);
+      console.error('Falha ao sincronizar dados do Google Sheets:', err);
       setSyncConfig((prev) => ({ ...prev, syncStatus: 'error' }));
     }
-  }, [APPS_SCRIPT_WEBAPP_URL]);
+  }, []);
 
   useEffect(() => {
     performSyncNow();
   }, [performSyncNow]);
 
-  // Função para salvar alterações no Google Sheets
+  // Função para salvar edições no Google Sheets via POST
   const handleUpdateUsinas = async (updatedList: UsinaConcessionaria[]) => {
     const limpas = updatedList.map((u, i) => sanitizarUsina(u, i));
     setUsinas(limpas);
