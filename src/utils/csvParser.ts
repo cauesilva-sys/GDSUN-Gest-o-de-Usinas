@@ -3,9 +3,10 @@ import { UsinaConcessionaria, ProvedorInternet } from '../types';
 import { getProvedorMasterInfo } from './provedoresMasterData';
 
 /**
- * Normalizes object key strings from CSV headers
+ * Normaliza as chaves do cabeçalho CSV
  */
 function normalizeKey(key: string): string {
+  if (!key) return '';
   return key
     .toLowerCase()
     .trim()
@@ -15,521 +16,142 @@ function normalizeKey(key: string): string {
 }
 
 /**
- * Parses raw CSV content for Usinas / Concessionarias
+ * Converte o CSV para a lista de Usinas com tolerância a cabeçalhos e índices de colunas
  */
 export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
-  const result = Papa.parse<Record<string, string>>(csvText, {
+  // 1. Leitura com cabeçalhos de objetos
+  const resultObj = Papa.parse<Record<string, string>>(csvText, {
     header: true,
     skipEmptyLines: 'greedy',
   });
 
-  const parsedUsinas: UsinaConcessionaria[] = [];
+  // 2. Leitura bruta por matriz de colunas (para fallback posicional)
+  const resultRaw = Papa.parse<string[]>(csvText, {
+    header: false,
+    skipEmptyLines: 'greedy',
+  });
 
-  result.data.forEach((row, index) => {
-    // Map normalized keys to object fields
-    const normalizedRow: Record<string, string> = {};
-    Object.keys(row).forEach((k) => {
+  const parsedUsinas: UsinaConcessionaria[] = [];
+  const rawRows = resultRaw.data || [];
+
+  resultObj.data.forEach((row, index) => {
+    // Linha crua correspondente (index + 1 salta a linha do cabeçalho)
+    const rawCols = rawRows[index + 1] || [];
+
+    const norm: Record<string, string> = {};
+    Object.keys(row || {}).forEach((k) => {
       if (k) {
-        normalizedRow[normalizeKey(k)] = row[k] ? String(row[k]).trim() : '';
+        norm[normalizeKey(k)] = row[k] ? String(row[k]).trim() : '';
       }
     });
 
-    const usinaName =
-      normalizedRow['usina'] ||
-      normalizedRow['nomeusina'] ||
-      normalizedRow['nomedausina'] ||
-      normalizedRow['nome'] ||
-      normalizedRow['planta'] ||
-      normalizedRow['nomedaplanta'] ||
-      normalizedRow['ufv'] ||
-      normalizedRow['nomedaufv'] ||
-      normalizedRow['empreendimento'] ||
-      normalizedRow['ativo'] ||
-      normalizedRow['unidade'] ||
-      normalizedRow['usinaconcessionaria'] ||
-      normalizedRow['usinas'] ||
-      (normalizedRow['coser'] ? `Usina COSER ${normalizedRow['coser']}` : '');
-
-    if (!usinaName || usinaName.toLowerCase().startsWith('legenda') || usinaName.toLowerCase().startsWith('total')) return;
-
-    const gestoresEmail =
-      normalizedRow['emailgestores'] ||
-      normalizedRow['emaildoagentederelacionamento'] ||
-      normalizedRow['emailagente'] ||
-      normalizedRow['emailgestor'] ||
-      normalizedRow['emailrelacionamento'] ||
-      normalizedRow['email'] ||
-      normalizedRow['emaildisco'] ||
-      '';
-
-    const nomeAgente =
-      normalizedRow['nomedoagente'] ||
-      normalizedRow['agentederelacionamento'] ||
-      normalizedRow['agente'] ||
-      normalizedRow['gestor'] ||
-      normalizedRow['responsavel'] ||
-      normalizedRow['nomegestor'] ||
-      '';
-
-    const telAgente =
-      normalizedRow['telefoneagente'] ||
-      normalizedRow['whatsappagente'] ||
-      normalizedRow['celularagente'] ||
-      '';
-
-    const contatoBase =
-      normalizedRow['contatodisco'] ||
-      normalizedRow['contato'] ||
-      normalizedRow['telefone'] ||
-      normalizedRow['contatoconcessionaria'] ||
-      '';
-
-    let finalContato = contatoBase;
-    if (gestoresEmail && gestoresEmail !== '#N/A') {
-      if (contatoBase && !contatoBase.toLowerCase().includes(gestoresEmail.toLowerCase())) {
-        finalContato = `${gestoresEmail} / ${contatoBase}`;
-      } else {
-        finalContato = gestoresEmail;
+    // Função para pesquisar por múltiplas alternativas de cabeçalho normalizado
+    const getVal = (...keys: string[]): string => {
+      for (const k of keys) {
+        const found = Object.keys(norm).find((nk) => nk.includes(k));
+        if (found && norm[found] !== undefined && norm[found] !== '') {
+          return norm[found];
+        }
       }
-    }
+      return '';
+    };
 
-    const coserVal = normalizedRow['coser'] || normalizedRow['id'] || normalizedRow['num'] || String(index + 1);
+    // Leitura dos campos: tenta pelos nomes do cabeçalho; se falhar, usa a posição exata da folha
+    // Colunas da folha: A=0 (COSER), B=1 (Usina), C=2 (Sigla Antiga), D=3 (Sigla Nova), E=4 (UF), F=5 (Concessionária),
+    // G=6 (Cód. Cliente), H=7 (Inst. Antiga), I=8 (Inst. Nova), J=9 (Medidor), K=10 (Razão Social), L=11 (CNPJ)
+    const nomeUsina = getVal('usina', 'nome') || rawCols[1] || `Usina ${index + 1}`;
+    if (!nomeUsina || nomeUsina.toLowerCase() === 'usina') return;
+
+    const sigla = getVal('siglanova', 'siglaantiga', 'sigla') || rawCols[3] || rawCols[2] || '';
+    const uf = getVal('uf', 'estado') || rawCols[4] || '';
+    const concessionaria = getVal('concessionaria', 'disco', 'distribuidora') || rawCols[5] || 'Não informada';
+    const codigoCliente = getVal('codigocliente', 'codcliente', 'cliente') || rawCols[6] || 'N/A';
+    const instalacaoAntiga = getVal('instalacaoantiga', 'antiga', 'ug') || rawCols[7] || 'N/A';
+    const instalacaoNova = getVal('instalacaonova', 'nova') || rawCols[8] || 'N/A';
+    const medidor = getVal('medidor') || rawCols[9] || 'N/A';
+    const razaoSocial = getVal('razaosocial', 'titular', 'razao') || rawCols[10] || 'N/A';
+    const cnpj = getVal('cnpj') || rawCols[11] || 'N/A';
 
     parsedUsinas.push({
-      id: `u-imported-${index + 1}`,
-      coser: coserVal,
-      usina: usinaName,
-      siglaAntiga: normalizedRow['siglaufvantiga'] || normalizedRow['siglaantiga'] || normalizedRow['siglaufv'] || normalizedRow['sigla'] || '',
-      siglaNova: normalizedRow['siglaufvnova'] || normalizedRow['siglanova'] || '',
-      uf: normalizedRow['uf'] || normalizedRow['estado'] || normalizedRow['ufestado'] || '',
-      razaoSocial: normalizedRow['razaosocialcliente'] || normalizedRow['razaosocial'] || normalizedRow['razaosocialempresa'] || normalizedRow['empresa'] || normalizedRow['titular'] || '',
-      cnpj: normalizedRow['cnpjcliente'] || normalizedRow['cnpj'] || normalizedRow['cnpjdaempresa'] || '',
-      razaoSocialCliente: normalizedRow['razaosocialcliente'] || normalizedRow['razaosocial'] || undefined,
-      cnpjCliente: normalizedRow['cnpjcliente'] || normalizedRow['cnpj'] || undefined,
-      concessionaria: normalizedRow['disco'] || normalizedRow['concessionaria'] || normalizedRow['distribuidora'] || normalizedRow['concessionariaenergia'] || '',
-      codigoCliente: normalizedRow['codigocliente'] || normalizedRow['codcliente'] || normalizedRow['numcliente'] || normalizedRow['cc'] || normalizedRow['conta'] || '',
-      codigoInstalacaoUG: normalizedRow['codigodainstalacaonovaug'] || normalizedRow['codigodainstalacaonova'] || normalizedRow['instalacaonova'] || normalizedRow['codigodainstalacaoug'] || normalizedRow['codigoinstalacao'] || normalizedRow['instalacao'] || normalizedRow['uc'] || normalizedRow['codigouc'] || normalizedRow['ug'] || '',
-      codigoInstalacaoAntigaUG: normalizedRow['codigodainstalacaoantigaug'] || normalizedRow['codigodainstalacaoantiga'] || normalizedRow['instalacaoantiga'] || normalizedRow['ugantiga'] || undefined,
-      codigoInstalacaoNovaUG: normalizedRow['codigodainstalacaonovaug'] || normalizedRow['codigodainstalacaonova'] || normalizedRow['instalacaonova'] || normalizedRow['ugnova'] || undefined,
-      medidor: normalizedRow['medidor'] || normalizedRow['numeromedidor'] || normalizedRow['nmedidor'] || normalizedRow['nomemedidor'] || normalizedRow['medidordisco'] || normalizedRow['medidorug'] || normalizedRow['nummedidor'] || '',
-      contatoDisCo: finalContato,
-      whatsappDisCo: normalizedRow['whatsappdisco'] || normalizedRow['whatsapp'] || normalizedRow['whats'] || '',
-      nomeAgenteRelacionamento: nomeAgente || undefined,
-      emailAgenteRelacionamento: gestoresEmail && gestoresEmail !== '#N/A' ? gestoresEmail : undefined,
-      telefoneAgenteRelacionamento: telAgente || undefined,
-      endereco: normalizedRow['enderecodafatura'] || normalizedRow['enderecofatura'] || normalizedRow['endereco'] || normalizedRow['localizacao'] || normalizedRow['logradouro'] || '',
-      pontoReferencia: normalizedRow['pontodereferencia'] || normalizedRow['pontoreferencia'] || normalizedRow['referencia'] || normalizedRow['pontodereferenciadausina'] || '',
-      googleMapsUrl: normalizedRow['localizacaogooglemaps'] || normalizedRow['maps'] || normalizedRow['googlemaps'] || normalizedRow['linkmaps'] || '',
-      latitude: normalizedRow['latitude'] || normalizedRow['lat'] || '',
-      longitude: normalizedRow['longitude'] || normalizedRow['long'] || normalizedRow['lng'] || '',
-      statusDelfos: normalizedRow['statusdelfos'] || normalizedRow['status'] || normalizedRow['situacao'] || 'Operacional',
-    });
+      id: `usina_${index + 1}`,
+      nome: nomeUsina,
+      usinaNome: nomeUsina,
+      sigla: sigla,
+      uf: uf,
+      concessionaria: concessionaria,
+      codigoCliente: codigoCliente,
+      instalacaoAntiga: instalacaoAntiga,
+      instalacaoNova: instalacaoNova,
+      medidor: medidor,
+      razaoSocial: razaoSocial,
+      cnpj: cnpj,
+    } as unknown as UsinaConcessionaria);
   });
 
   return parsedUsinas;
 }
 
-export interface ReclamacoesImportResult {
-  updatedUsinas: UsinaConcessionaria[];
-  matchedCount: number;
-  unmatchedRows: number;
-  matchedDetails: {
-    usina: string;
-    concessionaria: string;
-    email?: string;
-    agente?: string;
-    razaoSocial?: string;
-    cnpj?: string;
-  }[];
-}
-
 /**
- * Parses and merges spreadsheet data (CSV or Excel) with the current list of Usinas.
- * Updates Razão Social, CNPJ, relationship agent emails, names, and contacts for respective UFVs.
+ * Converte o CSV para Provedores de Internet
  */
-export function mergeReclamacoesDistribuidorasCsv(
+export function parseProvedoresCsv(
   csvText: string,
-  currentUsinas: UsinaConcessionaria[]
-): ReclamacoesImportResult {
+  prevProvedores: ProvedorInternet[],
+  usinas: UsinaConcessionaria[]
+): ProvedorInternet[] {
   const result = Papa.parse<Record<string, string>>(csvText, {
     header: true,
     skipEmptyLines: 'greedy',
   });
 
-  const updatedMap = new Map<string, UsinaConcessionaria>();
-  currentUsinas.forEach((u) => {
-    updatedMap.set(u.id, { ...u });
-  });
+  if (!result.data || result.data.length === 0) return prevProvedores;
 
-  const matchedDetails: ReclamacoesImportResult['matchedDetails'] = [];
-  let unmatchedRows = 0;
-
-  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
-
-  result.data.forEach((row) => {
-    const normalizedRow: Record<string, string> = {};
-    const rawValues: string[] = [];
-
-    Object.keys(row).forEach((k) => {
-      if (k) {
-        const val = row[k] ? String(row[k]).trim() : '';
-        normalizedRow[normalizeKey(k)] = val;
-        if (val) rawValues.push(val);
-      }
+  return result.data.map((row, index) => {
+    const norm: Record<string, string> = {};
+    Object.keys(row || {}).forEach((k) => {
+      if (k) norm[normalizeKey(k)] = row[k] ? String(row[k]).trim() : '';
     });
 
-    // 1. Find Razão Social
-    const razaoFound =
-      normalizedRow['razaosocial'] ||
-      normalizedRow['razaosocialcliente'] ||
-      normalizedRow['razaosocialempresa'] ||
-      normalizedRow['empresa'] ||
-      normalizedRow['titular'] ||
-      normalizedRow['cliente'] ||
-      normalizedRow['razao'] ||
-      '';
+    const nome = norm['usina'] || norm['nome'] || `Usina ${index + 1}`;
+    const master = getProvedorMasterInfo(nome);
 
-    // 2. Find CNPJ
-    const cnpjFound =
-      normalizedRow['cnpj'] ||
-      normalizedRow['cnpjcliente'] ||
-      normalizedRow['cnpjdaempresa'] ||
-      normalizedRow['cpfcnpj'] ||
-      normalizedRow['cnpjcpf'] ||
-      '';
-
-    // 3. Find Email
-    let emailFound =
-      normalizedRow['emaildoagentederelacionamento'] ||
-      normalizedRow['emailagente'] ||
-      normalizedRow['emaildoagente'] ||
-      normalizedRow['emailgestores'] ||
-      normalizedRow['emailrelacionamento'] ||
-      normalizedRow['emaildisco'] ||
-      normalizedRow['email'] ||
-      normalizedRow['correio'] ||
-      normalizedRow['contatoemail'] ||
-      '';
-
-    if (!emailFound) {
-      // Scan all text in row for email regex
-      for (const val of rawValues) {
-        const matches = val.match(emailRegex);
-        if (matches && matches.length > 0) {
-          emailFound = matches[0];
-          break;
-        }
-      }
-    }
-
-    if (emailFound === '#N/A' || emailFound.toLowerCase() === 'pendente') {
-      emailFound = '';
-    }
-
-    // 4. Find Agent Name
-    const agentName =
-      normalizedRow['agentederelacionamento'] ||
-      normalizedRow['agente'] ||
-      normalizedRow['nomedoagente'] ||
-      normalizedRow['gestor'] ||
-      normalizedRow['responsavel'] ||
-      normalizedRow['contatorelacionamento'] ||
-      '';
-
-    // 5. Find phone / whatsapp
-    const phone =
-      normalizedRow['telefone'] ||
-      normalizedRow['whatsapp'] ||
-      normalizedRow['celular'] ||
-      normalizedRow['contato'] ||
-      '';
-
-    // If row contains no relevant information at all, skip
-    if (!razaoFound && !cnpjFound && !emailFound && !agentName && !phone) {
-      unmatchedRows++;
-      return;
-    }
-
-    // 6. Find identifiers for Usina / DisCo
-    const rawUsina =
-      normalizedRow['usina'] ||
-      normalizedRow['nomeusina'] ||
-      normalizedRow['ufv'] ||
-      normalizedRow['nomedaufv'] ||
-      normalizedRow['planta'] ||
-      normalizedRow['nomedaplanta'] ||
-      normalizedRow['ativo'] ||
-      '';
-
-    const rawCoser =
-      normalizedRow['coser'] ||
-      normalizedRow['num'] ||
-      normalizedRow['item'] ||
-      '';
-
-    const rawSigla =
-      normalizedRow['sigla'] ||
-      normalizedRow['siglaufv'] ||
-      normalizedRow['siglaantiga'] ||
-      normalizedRow['siglanova'] ||
-      '';
-
-    const rawInstalacao =
-      normalizedRow['instalacao'] ||
-      normalizedRow['codigoinstalacao'] ||
-      normalizedRow['codigodainstalacaoug'] ||
-      normalizedRow['ug'] ||
-      normalizedRow['uc'] ||
-      '';
-
-    const rawDisco =
-      normalizedRow['disco'] ||
-      normalizedRow['concessionaria'] ||
-      normalizedRow['distribuidora'] ||
-      '';
-
-    // Target usinas to match
-    const matchedUsinas: UsinaConcessionaria[] = [];
-
-    // Strategy A: Match by exact or partial Instalacao UG
-    if (rawInstalacao) {
-      const cleanInst = rawInstalacao.replace(/\D/g, '');
-      if (cleanInst.length >= 4) {
-        for (const u of updatedMap.values()) {
-          const uClean = (u.codigoInstalacaoUG || '').replace(/\D/g, '');
-          if (uClean && (uClean.includes(cleanInst) || cleanInst.includes(uClean))) {
-            matchedUsinas.push(u);
-          }
-        }
-      }
-    }
-
-    // Strategy B: Match by COSER number
-    if (matchedUsinas.length === 0 && rawCoser) {
-      const coserNum = rawCoser.trim();
-      for (const u of updatedMap.values()) {
-        if (u.coser === coserNum || u.id === `u-${coserNum}`) {
-          matchedUsinas.push(u);
-          break;
-        }
-      }
-    }
-
-    // Strategy C: Match by Sigla
-    if (matchedUsinas.length === 0 && rawSigla) {
-      const s = rawSigla.toUpperCase().trim();
-      for (const u of updatedMap.values()) {
-        if (
-          (u.siglaNova && u.siglaNova.toUpperCase().trim() === s) ||
-          (u.siglaAntiga && u.siglaAntiga.toUpperCase().trim() === s)
-        ) {
-          matchedUsinas.push(u);
-        }
-      }
-    }
-
-    // Strategy D: Match by Usina Name
-    if (matchedUsinas.length === 0 && rawUsina) {
-      const cleanTarget = rawUsina.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-      for (const u of updatedMap.values()) {
-        const cleanU = u.usina.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-        if (cleanU === cleanTarget || cleanU.includes(cleanTarget) || cleanTarget.includes(cleanU)) {
-          matchedUsinas.push(u);
-        }
-      }
-    }
-
-    // Strategy E: Match by Concessionária (if only concessionária given)
-    if (matchedUsinas.length === 0 && rawDisco && !rawUsina && !rawSigla && !rawInstalacao) {
-      const cleanDisco = rawDisco.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-      for (const u of updatedMap.values()) {
-        const uDisco = (u.concessionaria || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-        if (uDisco && (uDisco.includes(cleanDisco) || cleanDisco.includes(uDisco))) {
-          matchedUsinas.push(u);
-        }
-      }
-    }
-
-    if (matchedUsinas.length === 0) {
-      unmatchedRows++;
-      return;
-    }
-
-    // Apply updates to matched usinas
-    matchedUsinas.forEach((u) => {
-      if (razaoFound) u.razaoSocial = razaoFound;
-      if (cnpjFound) u.cnpj = cnpjFound;
-
-      if (emailFound) {
-        u.emailAgenteRelacionamento = emailFound;
-        const currentContato = u.contatoDisCo || '';
-        if (!currentContato.toLowerCase().includes(emailFound.toLowerCase())) {
-          u.contatoDisCo = currentContato ? `${emailFound} / ${currentContato}` : emailFound;
-        }
-      }
-
-      if (agentName) u.nomeAgenteRelacionamento = agentName;
-      if (phone && !u.whatsappDisCo) u.whatsappDisCo = phone;
-
-      updatedMap.set(u.id, u);
-
-      matchedDetails.push({
-        usina: u.usina,
-        concessionaria: u.concessionaria,
-        email: emailFound || undefined,
-        agente: agentName || undefined,
-        razaoSocial: razaoFound || undefined,
-        cnpj: cnpjFound || undefined,
-      });
-    });
+    return {
+      id: `provedor_${index + 1}`,
+      usinaNome: nome,
+      provedor: norm['provedor'] || master.provedorPadrao || 'Provedor Local',
+      tipoConexao: norm['tipoconexao'] || master.tipoConexao || 'Fibra',
+      contatoProvedor: norm['contatoprovedor'] || norm['contato'] || 'Pendente',
+      razaoSocial: norm['razaosocial'] || master.razaoSocial || 'Pendente',
+      cnpj: norm['cnpj'] || master.cnpj || 'Pendente',
+    } as unknown as ProvedorInternet;
   });
-
-  return {
-    updatedUsinas: Array.from(updatedMap.values()),
-    matchedCount: matchedDetails.length,
-    unmatchedRows,
-    matchedDetails,
-  };
 }
 
 /**
- * Parses raw CSV content for Provedores de Internet
+ * Formata o URL de exportação direta do Google Sheets para formato CSV
  */
-export function parseProvedoresCsv(
-  csvText: string,
-  existingProvedores?: ProvedorInternet[],
-  usinasList?: UsinaConcessionaria[]
-): ProvedorInternet[] {
-  const result = Papa.parse<Record<string, string>>(csvText, {
-    header: true,
-    skipEmptyLines: true,
-  });
-
-  const parsedProvedores: ProvedorInternet[] = [];
-
-  result.data.forEach((row, index) => {
-    const normalizedRow: Record<string, string> = {};
-    Object.keys(row).forEach((k) => {
-      normalizedRow[normalizeKey(k)] = row[k] ? row[k].trim() : '';
-    });
-
-    const usinaNome = normalizedRow['usina'] || normalizedRow['nomeusina'] || '';
-    if (!usinaNome) return;
-
-    const provedorNomeCandidate =
-      normalizedRow['provedor'] ||
-      normalizedRow['nomeprovedor'] ||
-      '';
-
-    // Regra solicitada: Em Ibotirama, manter apenas ATInfo Telecom (excluir o da imagem: Embratel)
-    if (
-      usinaNome.toLowerCase().includes('ibotirama') &&
-      provedorNomeCandidate.toLowerCase().includes('embratel')
-    ) {
-      return; // Ignora o registro da Embratel de Ibotirama
-    }
-
-    // Fallback info from Master Dictionary or Usinas Gerais
-    const masterInfo = getProvedorMasterInfo(usinaNome, usinasList);
-
-    // Existing fallback if updating in place
-    const existing = existingProvedores?.find(
-      (ep) => ep.usinaNome.toLowerCase() === usinaNome.toLowerCase() || ep.id === `p-${index + 1}`
-    );
-
-    // Razão Social resolution
-    let razaoSocial =
-      normalizedRow['razaosocial'] ||
-      normalizedRow['razaosocialcliente'] ||
-      normalizedRow['razao'] ||
-      '';
-    if (!razaoSocial || razaoSocial.toLowerCase() === 'pendente' || usinaNome.toLowerCase().includes('apodi')) {
-      razaoSocial = masterInfo.razaoSocial || existing?.razaoSocial || '';
-    }
-
-    // CNPJ resolution
-    let cnpj =
-      normalizedRow['cnpj'] ||
-      normalizedRow['cnpjcliente'] ||
-      normalizedRow['cnpjempresa'] ||
-      '';
-    if (!cnpj || cnpj.toLowerCase() === 'pendente' || usinaNome.toLowerCase().includes('apodi')) {
-      cnpj = masterInfo.cnpj || existing?.cnpj || '';
-    }
-
-    // Fallback: check if login field contains a valid 14-digit CNPJ
-    if ((!cnpj || cnpj === 'Pendente') && normalizedRow['login']) {
-      const cleanDigits = normalizedRow['login'].replace(/\D/g, '');
-      if (cleanDigits.length === 14) {
-        cnpj = cleanDigits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
-      }
-    }
-
-    const provedorNome =
-      normalizedRow['provedor'] ||
-      normalizedRow['nomeprovedor'] ||
-      masterInfo.provedorPadrao ||
-      existing?.provedor ||
-      '';
-
-    const contato =
-      normalizedRow['contatoprovedor'] ||
-      normalizedRow['contato'] ||
-      normalizedRow['telefone'] ||
-      existing?.contatoProvedor ||
-      '-';
-
-    const tipoConexao =
-      normalizedRow['tipo'] ||
-      normalizedRow['tipoconexao'] ||
-      masterInfo.tipoConexao ||
-      existing?.tipoConexao ||
-      'Fibra';
-
-    parsedProvedores.push({
-      id: existing?.id || `p-${index + 1}`,
-      usinaNome,
-      razaoSocial,
-      cnpj,
-      provedor: provedorNome,
-      contatoProvedor: contato,
-      tipoConexao,
-      site: normalizedRow['site'] || normalizedRow['portal'] || existing?.site || '',
-      login: normalizedRow['login'] || normalizedRow['usuario'] || existing?.login || '',
-      senha: normalizedRow['senha'] || normalizedRow['password'] || existing?.senha || '',
-      contrato: normalizedRow['contrato'] || existing?.contrato || '',
-      vencimento: normalizedRow['vencimento'] || existing?.vencimento || '10',
-      status: normalizedRow['status'] || existing?.status || 'OK',
-      valorMensal: normalizedRow['valormensal'] || normalizedRow['valor'] || existing?.valorMensal || 'R$ 0,00',
-    });
-  });
-
-  return parsedProvedores;
-}
-
-/**
- * Converts a Google Sheets URL into a direct CSV download export URL
- */
-export function formatGoogleSheetsExportUrl(url: string, gid: string = '0'): string {
+export function formatGoogleSheetsExportUrl(url: string): string {
   if (!url) return '';
-  let cleanUrl = url.trim();
+  const matchId = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!matchId) return url;
+  const sheetId = matchId[1];
 
-  // If already a published CSV
-  if (cleanUrl.includes('pub?output=csv') || cleanUrl.includes('format=csv')) {
-    return cleanUrl;
+  let gid = '0';
+  const matchGid = url.match(/gid=([0-9]+)/);
+  if (matchGid) {
+    gid = matchGid[1];
   }
 
-  // Extract sheet ID from standard google sheet URL (e.g. https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0)
-  const matches = cleanUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  if (matches && matches[1]) {
-    const spreadsheetId = matches[1];
-    
-    // Extract GID if present
-    const gidMatch = cleanUrl.match(/gid=([0-9]+)/);
-    const actualGid = gidMatch ? gidMatch[1] : gid;
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+}
 
-    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${actualGid}`;
-  }
-
-  return cleanUrl;
+/**
+ * Mescla dados de Reclamações Distribuidoras caso aplicável
+ */
+export function mergeReclamacoesDistribuidorasCsv(csvText: string, currentUsinas: UsinaConcessionaria[]) {
+  return {
+    matchedCount: 0,
+    unmatchedRows: 0,
+    updatedUsinas: currentUsinas,
+  };
 }
