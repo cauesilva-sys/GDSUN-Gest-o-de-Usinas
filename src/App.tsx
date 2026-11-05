@@ -18,10 +18,10 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUsinaFilter, setSelectedUsinaFilter] = useState<string>('TODAS');
 
-  // Data storage versioning (upgraded for Neoenergia agent update - Aderlan Barroso)
-  const USINAS_VERSION = 'v150_gdsun_data_v14_aderlan_barroso';
+  // Data storage versioning (upgraded for Barra do Arará agent update - Aderlan Barroso)
+  const USINAS_VERSION = 'v151_gdsun_data_v15_barra_do_arara';
   const PROVEDORES_VERSION = 'v146_gdsun_data_v11_ituverava_peixe_cadastrais';
-  const USINAS_STORAGE_KEY = 'gdsun_usinas_v14';
+  const USINAS_STORAGE_KEY = 'gdsun_usinas_v15';
   const PROVEDORES_STORAGE_KEY = 'gdsun_provedores_v11';
 
   // Clean legacy cache from previous versions if present
@@ -71,6 +71,8 @@ export default function App() {
       localStorage.removeItem('gdsun_usinas_v12');
       localStorage.removeItem('gdsun_usinas_v13');
       localStorage.removeItem('gdsun_usinas_version_v13');
+      localStorage.removeItem('gdsun_usinas_v14');
+      localStorage.removeItem('gdsun_usinas_version_v14');
     } catch {
       // ignore
     }
@@ -79,12 +81,12 @@ export default function App() {
   // Local storage loaded state with fallbacks to prompt's initial data
   const [usinas, setUsinas] = useState<UsinaConcessionaria[]>(() => {
     try {
-      const savedVersion = localStorage.getItem('gdsun_usinas_version_v14');
+      const savedVersion = localStorage.getItem('gdsun_usinas_version_v15');
       const saved = localStorage.getItem(USINAS_STORAGE_KEY);
       if (saved && savedVersion === USINAS_VERSION) {
         return JSON.parse(saved);
       }
-      localStorage.setItem('gdsun_usinas_version_v14', USINAS_VERSION);
+      localStorage.setItem('gdsun_usinas_version_v15', USINAS_VERSION);
       localStorage.setItem(USINAS_STORAGE_KEY, JSON.stringify(initialUsinas));
       return initialUsinas;
     } catch {
