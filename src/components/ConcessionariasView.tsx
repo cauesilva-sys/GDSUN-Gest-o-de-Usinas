@@ -55,7 +55,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   const [editEndereco, setEditEndereco] = useState<string>('');
   const [editPontoRef, setEditPontoRef] = useState<string>('');
 
-  // 1. Limpa o cache antigo que estava com os dados trocados no navegador
+  // Limpa o cache antigo gravado localmente
   useEffect(() => {
     try {
       const keysToRemove: string[] = [];
@@ -67,33 +67,32 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       }
       keysToRemove.forEach((k) => localStorage.removeItem(k));
     } catch (e) {
-      // Ignora erro de storage restrito
+      // Ignora erro de storage
     }
   }, []);
 
-  // 2. Mapeamento 100% blindado com a base autêntica do initialData
+  // Regex para identificar padrão de CNPJ
+  const isCnpj = (val: string) => /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(String(val).trim());
+
+  // Mapeamento dos campos garantindo a regra idêntica para todas as usinas
   const resolveCampos = (u: any) => {
-    // Busca a usina correspondente na base limpa do initialData
     const base: any = (initialUsinas || []).find(
       (b) => b.id === u.id || b.usina === u.usina || b.nome === u.nome || b.coser === u.coser
     ) || {};
 
-    // BLOCO 1: RAZÃO SOCIAL & CNPJ
-    // Garante que razão social seja o nome e nunca o medidor numérico
+    // 1. RAZÃO SOCIAL & CNPJ
     let razaoSocial = base.razaoSocial || base.razaoSocialCliente || u.razaoSocial || u.razaoSocialCliente || 'Pendente';
     let cnpj = base.cnpj || base.cnpjCliente || u.cnpj || u.cnpjCliente || 'Pendente';
 
-    // Se por acaso veio invertido (Razão com números e CNPJ com o nome da empresa)
     if (/^\d{5,}$/.test(String(razaoSocial).trim()) && cnpj && !/^\d{2}\./.test(cnpj)) {
       const temp = razaoSocial;
       razaoSocial = cnpj;
       cnpj = temp;
     }
 
-    // BLOCO 2: CONCESSIONÁRIA & CONTATO (COLUNA G)
+    // 2. CONCESSIONÁRIA & CONTATO (COLUNA G)
     const concessionaria = base.concessionaria || u.concessionaria || u.disco || 'Não informada';
     
-    // Contato da concessionária (Coluna G)
     let contatoConcessionaria = '';
     const rawContato = String(base.contatoDisCo || u.contatoDisCo || '').trim();
     if (rawContato) {
@@ -106,12 +105,12 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       }
     }
 
-    // BLOCO 3: AGENTE / GESTOR DE RELACIONAMENTO (COLUNAS P E Q)
+    // 3. AGENTE / GESTOR DE RELACIONAMENTO (COLUNAS P E Q)
     let nomeGestor = base.nomeAgenteRelacionamento || u.nomeAgenteRelacionamento || '';
     let emailGestor = base.emailAgenteRelacionamento || u.emailAgenteRelacionamento || '';
     let telGestor = base.telefoneAgenteRelacionamento || base.whatsappDisCo || u.telefoneAgenteRelacionamento || u.whatsappDisCo || '';
 
-    // Se o contatoDisCo tem e-mail do gestor (ex: grandesclientes@edp... ou aderlan.barroso@...)
+    // Extrai se estiver no contatoDisCo
     if (rawContato.includes('@')) {
       const parts = rawContato.split('/');
       const mailPart = parts.find((p) => p.includes('@'));
@@ -120,37 +119,37 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       if (!telGestor && phonePart) telGestor = phonePart.trim();
     }
 
-    if (!nomeGestor || nomeGestor === 'Clientes Corporativos') {
+    // BLINDAGEM: Se o email for um CNPJ (erro de Presidente Alves), LIMPAR
+    if (isCnpj(emailGestor)) {
+      emailGestor = '';
+    }
+
+    // Ajusta o nome do gestor conforme a concessionária/email
+    if (!nomeGestor || nomeGestor === 'Clientes Corporativos' || isCnpj(nomeGestor)) {
       if (emailGestor.toLowerCase().includes('aderlan')) {
         nomeGestor = 'Aderlan Barroso';
-      } else if (emailGestor.toLowerCase().includes('edp')) {
+      } else if (emailGestor.toLowerCase().includes('edp') || concessionaria.includes('EDP')) {
         nomeGestor = 'Grandes Clientes (EDP)';
-      } else if (emailGestor.toLowerCase().includes('cpfl')) {
+      } else if (emailGestor.toLowerCase().includes('cpfl') || concessionaria.includes('CPFL')) {
         nomeGestor = 'Grandes Clientes (CPFL)';
-      } else if (emailGestor) {
-        nomeGestor = 'Gestor de Relacionamento';
+      } else if (concessionaria.includes('Coelba') || concessionaria.includes('Neoenergia')) {
+        nomeGestor = 'Grandes Clientes (Neoenergia)';
       } else {
         nomeGestor = 'Gestor de Relacionamento';
       }
     }
 
-    // BLOCO 4: DADOS CADASTRAIS DA USINA (COLUNAS H, I, J, K)
-    // Cód. Cliente (Coluna H)
+    // 4. DADOS CADASTRAIS (COLUNAS H, I, J, K)
     let codCliente = base.codigoCliente || u.codigoCliente || 'N/A';
     if (codCliente.includes('@') || codCliente.includes('0800')) {
       codCliente = base.codigoCliente && !base.codigoCliente.includes('@') ? base.codigoCliente : 'N/A';
     }
 
-    // Instalação Antiga UG (Coluna I)
     const instAntiga = base.codigoInstalacaoAntigaUG || u.codigoInstalacaoAntigaUG || 'N/A';
-
-    // Instalação Nova UG (Coluna J)
     const instNova = base.codigoInstalacaoNovaUG || u.codigoInstalacaoNovaUG || base.codigoInstalacaoUG || u.codigoInstalacaoUG || 'N/A';
-
-    // Medidor (Coluna K)
     const medidor = base.medidor || u.medidor || 'N/A';
 
-    // BLOCO 5: ENDEREÇO (COLUNA R) & PONTO DE REFERÊNCIA (COLUNA S)
+    // 5. ENDEREÇO (COLUNA R) & PONTO DE REFERÊNCIA (COLUNA S)
     const endereco = base.endereco || u.endereco || 'Endereço não informado';
     const pontoReferencia = base.pontoReferencia || u.pontoReferencia || '';
 
@@ -428,11 +427,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       <FileText className="w-3 h-3 text-amber-700" />
                       <span>RAZÃO SOCIAL & CNPJ</span>
                     </div>
-                    {/* Nome real da empresa */}
                     <div className="font-bold text-slate-900 text-xs leading-snug">
                       {d.razaoSocial}
                     </div>
-                    {/* CNPJ real */}
                     <div className="flex items-center justify-between font-mono text-[11px] text-amber-900 font-extrabold pt-0.5">
                       <span>CNPJ: {d.cnpj}</span>
                       {d.cnpj !== 'Pendente' && (
@@ -477,7 +474,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       </div>
                     )}
 
-                    {/* Email do Gestor (Coluna P) */}
+                    {/* Email do Gestor (Coluna P) - Trava de segurança para não exibir CNPJ */}
                     {d.emailGestor ? (
                       <div className="flex items-center justify-between gap-1 bg-white p-2 rounded-lg border border-sky-200">
                         <div className="flex items-center gap-1.5 min-w-0">
