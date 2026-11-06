@@ -40,7 +40,7 @@ export const initialUsinas: UsinaConcessionaria[] = [
     "codigoCliente": "N/A",
     "codigoInstalacaoUG": "245229000453",
     "medidor": "15732740",
-    "contatoDisCo": "grandesclientes@edp.com.br",
+    "contatoDisCo": "grandesclientes@edp.com.br/ 0800 723 4321",
     "whatsappDisCo": "",
     "endereco": "RUA STO ANTONIO 9999, LT 123, 12615-000 REGIAO SITIO JOSE DE PAUL / CANAS - SP",
     "googleMapsUrl": "https://maps.app.goo.gl/1NT416MxtcCCUHsa7",
