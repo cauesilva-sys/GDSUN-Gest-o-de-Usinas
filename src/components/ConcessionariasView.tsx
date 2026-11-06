@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import Papa from 'papaparse';
 import { UsinaConcessionaria } from '../types';
-import { initialUsinas } from '../data/initialData';
 import { exportUsinasToExcel } from '../utils/excelExporter';
 import { 
   Building2, 
@@ -11,17 +11,19 @@ import {
   Hash, 
   FileText, 
   Filter, 
-  FileSpreadsheet,
-  Navigation,
-  Pencil,
-  X,
-  User,
-  Mail,
-  ExternalLink
+  FileSpreadsheet, 
+  Navigation, 
+  User, 
+  Mail, 
+  ExternalLink,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 
+const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/1BrlpPTiB1yEkODIvTBpBWKM0h_SMJcywuwH7VWLiTXk/export?format=csv&gid=1570514093";
+
 interface ConcessionariasViewProps {
-  usinas: UsinaConcessionaria[];
+  usinas?: UsinaConcessionaria[];
   searchQuery: string;
   selectedUsinaFilter: string;
   setSelectedUsinaFilter: (usina: string) => void;
@@ -29,217 +31,93 @@ interface ConcessionariasViewProps {
 }
 
 export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({ 
-  usinas = [], 
   searchQuery = '',
   selectedUsinaFilter = 'TODAS',
   setSelectedUsinaFilter,
-  onUpdateUsinas
 }) => {
+  const [usinas, setUsinas] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [selectedUf, setSelectedUf] = useState<string>('TODAS');
   const [selectedDisCo, setSelectedDisCo] = useState<string>('TODAS');
   const [selectedRazaoFilter, setSelectedRazaoFilter] = useState<string>('TODAS');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Estados da modal de edição manual
-  const [editingUsina, setEditingUsina] = useState<any | null>(null);
-  const [editRazaoSocial, setEditRazaoSocial] = useState<string>('');
-  const [editCnpj, setEditCnpj] = useState<string>('');
-  const [editCodigoCliente, setEditCodigoCliente] = useState<string>('');
-  const [editInstAntiga, setEditInstAntiga] = useState<string>('');
-  const [editInstNova, setEditInstNova] = useState<string>('');
-  const [editMedidor, setEditMedidor] = useState<string>('');
-  const [editNomeGestor, setEditNomeGestor] = useState<string>('');
-  const [editEmailGestor, setEditEmailGestor] = useState<string>('');
-  const [editTelGestor, setEditTelGestor] = useState<string>('');
-  const [editContatoConc, setEditContatoConc] = useState<string>('');
-  const [editEndereco, setEditEndereco] = useState<string>('');
-  const [editPontoRef, setEditPontoRef] = useState<string>('');
-
-  // Limpa o cache antigo gravado localmente
-  useEffect(() => {
+  const carregarGoogleSheets = async () => {
+    setLoading(true);
     try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && (k.includes('usina') || k.includes('gdsun') || k.includes('storage') || k.includes('data'))) {
-          keysToRemove.push(k);
+      // Adiciona timestamp para não pegar cache do navegador ao atualizar no Google Sheets
+      const res = await fetch(`${GOOGLE_SHEETS_CSV_URL}&t=${Date.now()}`);
+      const csvText = await res.text();
+
+      Papa.parse(csvText, {
+        header: false,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const rows = results.data as string[][];
+          if (!rows || rows.length < 2) {
+            setLoading(false);
+            return;
+          }
+
+          // Pula a linha 0 (cabeçalho) e mapeia pelas colunas
+          const dadosMapeados = rows.slice(1).map((row, idx) => {
+            const rawContato = String(row[6] || '').trim(); // Coluna G
+            let contatoConc = '';
+            let emailGestor = String(row[15] || '').trim();  // Coluna P
+            let telGestor = String(row[16] || '').trim();    // Coluna Q
+
+            // Trata caso email/telefone estejam na coluna G
+            if (rawContato.includes('@')) {
+              const parts = rawContato.split('/');
+              const emailPart = parts.find(p => p.includes('@'));
+              const telPart = parts.find(p => !p.includes('@'));
+              if (emailPart && !emailGestor) emailGestor = emailPart.trim();
+              if (telPart && !contatoConc) contatoConc = telPart.trim();
+            } else {
+              contatoConc = rawContato;
+            }
+
+            return {
+              id: `usina_${idx + 1}`,
+              coser: String(row[0] || idx + 1).trim(),
+              usina: String(row[1] || '').trim(),
+              siglaAntiga: String(row[2] || '').trim(),
+              siglaNova: String(row[3] || '').trim(),
+              uf: String(row[4] || '').trim(),
+              concessionaria: String(row[5] || 'Não informada').trim(),
+              contatoConcessionaria: contatoConc,
+              codigoCliente: String(row[7] || 'N/A').trim(),                  // Coluna H
+              codigoInstalacaoAntigaUG: String(row[8] || 'N/A').trim(),       // Coluna I
+              codigoInstalacaoNovaUG: String(row[9] || 'N/A').trim(),         // Coluna J
+              medidor: String(row[10] || 'N/A').trim(),                       // Coluna K
+              razaoSocial: String(row[11] || 'Pendente').trim(),              // Coluna L
+              cnpj: String(row[12] || 'Pendente').trim(),                     // Coluna M
+              emailGestor: emailGestor,                                       // Coluna P
+              telGestor: telGestor,                                           // Coluna Q
+              nomeGestor: emailGestor ? 'Gestor de Relacionamento' : '',
+              endereco: String(row[17] || 'Endereço não informado').trim(),   // Coluna R
+              pontoReferencia: String(row[18] || '').trim(),                  // Coluna S
+              googleMapsUrl: String(row[19] || '').trim()
+            };
+          });
+
+          setUsinas(dadosMapeados);
+          setLoading(false);
+        },
+        error: (err) => {
+          console.error("Erro ao converter CSV:", err);
+          setLoading(false);
         }
-      }
-      keysToRemove.forEach((k) => localStorage.removeItem(k));
-    } catch (e) {
-      // Ignora erro de storage
+      });
+    } catch (err) {
+      console.error("Erro ao buscar dados do Google Sheets:", err);
+      setLoading(false);
     }
-  }, []);
-
-  // Regex para identificar padrão de CNPJ
-  const isCnpj = (val: string) => /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(String(val).trim());
-
-  // Mapeamento dos campos garantindo a regra idêntica para todas as usinas
-  const resolveCampos = (u: any) => {
-    const base: any = (initialUsinas || []).find(
-      (b) => b.id === u.id || b.usina === u.usina || b.nome === u.nome || b.coser === u.coser
-    ) || {};
-
-    // 1. RAZÃO SOCIAL & CNPJ
-    let razaoSocial = base.razaoSocial || base.razaoSocialCliente || u.razaoSocial || u.razaoSocialCliente || 'Pendente';
-    let cnpj = base.cnpj || base.cnpjCliente || u.cnpj || u.cnpjCliente || 'Pendente';
-
-    if (/^\d{5,}$/.test(String(razaoSocial).trim()) && cnpj && !/^\d{2}\./.test(cnpj)) {
-      const temp = razaoSocial;
-      razaoSocial = cnpj;
-      cnpj = temp;
-    }
-
-    // 2. CONCESSIONÁRIA & CONTATO (COLUNA G)
-    const concessionaria = base.concessionaria || u.concessionaria || u.disco || 'Não informada';
-    
-    let contatoConcessionaria = '';
-    const rawContato = String(base.contatoDisCo || u.contatoDisCo || '').trim();
-    if (rawContato) {
-      if (rawContato.includes('@')) {
-        const parts = rawContato.split('/');
-        const telPart = parts.find((p) => !p.includes('@'));
-        contatoConcessionaria = telPart ? telPart.trim() : '';
-      } else {
-        contatoConcessionaria = rawContato;
-      }
-    }
-
-    // 3. AGENTE / GESTOR DE RELACIONAMENTO (COLUNAS P E Q)
-    let nomeGestor = base.nomeAgenteRelacionamento || u.nomeAgenteRelacionamento || '';
-    let emailGestor = base.emailAgenteRelacionamento || u.emailAgenteRelacionamento || '';
-    let telGestor = base.telefoneAgenteRelacionamento || base.whatsappDisCo || u.telefoneAgenteRelacionamento || u.whatsappDisCo || '';
-
-    // Extrai se estiver no contatoDisCo
-    if (rawContato.includes('@')) {
-      const parts = rawContato.split('/');
-      const mailPart = parts.find((p) => p.includes('@'));
-      const phonePart = parts.find((p) => !p.includes('@'));
-      if (!emailGestor && mailPart) emailGestor = mailPart.trim();
-      if (!telGestor && phonePart) telGestor = phonePart.trim();
-    }
-
-    // BLINDAGEM: Se o email for um CNPJ (erro de Presidente Alves), LIMPAR
-    if (isCnpj(emailGestor)) {
-      emailGestor = '';
-    }
-
-    // Ajusta o nome do gestor conforme a concessionária/email
-    if (!nomeGestor || nomeGestor === 'Clientes Corporativos' || isCnpj(nomeGestor)) {
-      if (emailGestor.toLowerCase().includes('aderlan')) {
-        nomeGestor = 'Aderlan Barroso';
-      } else if (emailGestor.toLowerCase().includes('edp') || concessionaria.includes('EDP')) {
-        nomeGestor = 'Grandes Clientes (EDP)';
-      } else if (emailGestor.toLowerCase().includes('cpfl') || concessionaria.includes('CPFL')) {
-        nomeGestor = 'Grandes Clientes (CPFL)';
-      } else if (concessionaria.includes('Coelba') || concessionaria.includes('Neoenergia')) {
-        nomeGestor = 'Grandes Clientes (Neoenergia)';
-      } else {
-        nomeGestor = 'Gestor de Relacionamento';
-      }
-    }
-
-    // 4. DADOS CADASTRAIS (COLUNAS H, I, J, K)
-    let codCliente = base.codigoCliente || u.codigoCliente || 'N/A';
-    if (codCliente.includes('@') || codCliente.includes('0800')) {
-      codCliente = base.codigoCliente && !base.codigoCliente.includes('@') ? base.codigoCliente : 'N/A';
-    }
-
-    const instAntiga = base.codigoInstalacaoAntigaUG || u.codigoInstalacaoAntigaUG || 'N/A';
-    const instNova = base.codigoInstalacaoNovaUG || u.codigoInstalacaoNovaUG || base.codigoInstalacaoUG || u.codigoInstalacaoUG || 'N/A';
-    const medidor = base.medidor || u.medidor || 'N/A';
-
-    // 5. ENDEREÇO (COLUNA R) & PONTO DE REFERÊNCIA (COLUNA S)
-    const endereco = base.endereco || u.endereco || 'Endereço não informado';
-    const pontoReferencia = base.pontoReferencia || u.pontoReferencia || '';
-
-    return {
-      razaoSocial,
-      cnpj,
-      concessionaria,
-      contatoConcessionaria,
-      nomeGestor,
-      emailGestor,
-      telGestor,
-      codCliente,
-      instAntiga,
-      instNova,
-      medidor,
-      endereco,
-      pontoReferencia,
-      googleMapsUrl: base.googleMapsUrl || u.googleMapsUrl
-    };
   };
 
-  // Filtragem
-  const filteredUsinas = useMemo(() => {
-    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
-    const query = String(searchQuery || '').toLowerCase().trim();
-
-    return list.filter((item) => {
-      if (!item) return false;
-      const d = resolveCampos(item);
-      const usinaNome = String(item.usina || item.nome || '').trim();
-      const usinaUf = String(item.uf || '').trim();
-
-      const matchUsina = selectedUsinaFilter === 'TODAS' || usinaNome === selectedUsinaFilter;
-      const matchUf = selectedUf === 'TODAS' || usinaUf === selectedUf;
-      const matchDisCo = selectedDisCo === 'TODAS' || d.concessionaria === selectedDisCo;
-      const matchRazao = selectedRazaoFilter === 'TODAS' || d.razaoSocial === selectedRazaoFilter;
-
-      if (!matchUsina || !matchUf || !matchDisCo || !matchRazao) return false;
-
-      if (!query) return true;
-
-      return (
-        usinaNome.toLowerCase().includes(query) ||
-        d.razaoSocial.toLowerCase().includes(query) ||
-        d.cnpj.includes(query) ||
-        d.codCliente.toLowerCase().includes(query) ||
-        d.instNova.toLowerCase().includes(query) ||
-        d.medidor.toLowerCase().includes(query) ||
-        d.endereco.toLowerCase().includes(query)
-      );
-    });
-  }, [usinas, searchQuery, selectedUsinaFilter, selectedUf, selectedDisCo, selectedRazaoFilter]);
-
-  const uniqueUsinas = useMemo(() => {
-    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
-    const set = new Set<string>();
-    list.forEach((u) => {
-      const nome = String(u.usina || u.nome || '').trim();
-      if (nome) set.add(nome);
-    });
-    return ['TODAS', ...Array.from(set).sort()];
-  }, [usinas]);
-
-  const uniqueRazoes = useMemo(() => {
-    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
-    const set = new Set<string>();
-    list.forEach((u) => {
-      const d = resolveCampos(u);
-      if (d.razaoSocial && d.razaoSocial !== 'Pendente') set.add(d.razaoSocial);
-    });
-    return ['TODAS', ...Array.from(set).sort()];
-  }, [usinas]);
-
-  const ufs = useMemo(() => {
-    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
-    const set = new Set<string>();
-    list.forEach((u) => {
-      if (u.uf) set.add(u.uf);
-    });
-    return ['TODAS', ...Array.from(set).sort()];
-  }, [usinas]);
-
-  const disCos = useMemo(() => {
-    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
-    const set = new Set<string>();
-    list.forEach((u) => {
-      if (u.concessionaria) set.add(u.concessionaria);
-    });
-    return ['TODAS', ...Array.from(set).sort()];
-  }, [usinas]);
+  useEffect(() => {
+    carregarGoogleSheets();
+  }, []);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -247,56 +125,64 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const openEditModal = (u: any) => {
-    const d = resolveCampos(u);
-    setEditingUsina(u);
-    setEditRazaoSocial(d.razaoSocial !== 'Pendente' ? d.razaoSocial : '');
-    setEditCnpj(d.cnpj !== 'Pendente' ? d.cnpj : '');
-    setEditCodigoCliente(d.codCliente !== 'N/A' ? d.codCliente : '');
-    setEditInstAntiga(d.instAntiga !== 'N/A' ? d.instAntiga : '');
-    setEditInstNova(d.instNova !== 'N/A' ? d.instNova : '');
-    setEditMedidor(d.medidor !== 'N/A' ? d.medidor : '');
-    setEditNomeGestor(d.nomeGestor);
-    setEditEmailGestor(d.emailGestor);
-    setEditTelGestor(d.telGestor);
-    setEditContatoConc(d.contatoConcessionaria);
-    setEditEndereco(d.endereco);
-    setEditPontoRef(d.pontoReferencia);
-  };
+  // Filtros dinâmicos
+  const filteredUsinas = useMemo(() => {
+    const query = String(searchQuery || '').toLowerCase().trim();
 
-  const handleSaveModal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingUsina || !onUpdateUsinas) return;
+    return usinas.filter((item) => {
+      const matchUsina = selectedUsinaFilter === 'TODAS' || item.usina === selectedUsinaFilter;
+      const matchUf = selectedUf === 'TODAS' || item.uf === selectedUf;
+      const matchDisCo = selectedDisCo === 'TODAS' || item.concessionaria === selectedDisCo;
+      const matchRazao = selectedRazaoFilter === 'TODAS' || item.razaoSocial === selectedRazaoFilter;
 
-    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
-    const updated = list.map((u) => {
-      if (u.id === editingUsina.id) {
-        return {
-          ...u,
-          razaoSocial: editRazaoSocial.trim(),
-          razaoSocialCliente: editRazaoSocial.trim(),
-          cnpj: editCnpj.trim(),
-          cnpjCliente: editCnpj.trim(),
-          codigoCliente: editCodigoCliente.trim(),
-          codigoInstalacaoAntigaUG: editInstAntiga.trim(),
-          codigoInstalacaoNovaUG: editInstNova.trim(),
-          codigoInstalacaoUG: editInstNova.trim() || editInstAntiga.trim(),
-          medidor: editMedidor.trim(),
-          nomeAgenteRelacionamento: editNomeGestor.trim(),
-          emailAgenteRelacionamento: editEmailGestor.trim(),
-          telefoneAgenteRelacionamento: editTelGestor.trim(),
-          whatsappDisCo: editTelGestor.trim(),
-          contatoDisCo: editContatoConc.trim(),
-          endereco: editEndereco.trim(),
-          pontoReferencia: editPontoRef.trim()
-        };
-      }
-      return u;
+      if (!matchUsina || !matchUf || !matchDisCo || !matchRazao) return false;
+      if (!query) return true;
+
+      return (
+        item.usina.toLowerCase().includes(query) ||
+        item.razaoSocial.toLowerCase().includes(query) ||
+        item.cnpj.includes(query) ||
+        item.codigoCliente.toLowerCase().includes(query) ||
+        item.codigoInstalacaoNovaUG.toLowerCase().includes(query) ||
+        item.medidor.toLowerCase().includes(query) ||
+        item.endereco.toLowerCase().includes(query) ||
+        item.emailGestor.toLowerCase().includes(query)
+      );
     });
+  }, [usinas, searchQuery, selectedUsinaFilter, selectedUf, selectedDisCo, selectedRazaoFilter]);
 
-    onUpdateUsinas(updated);
-    setEditingUsina(null);
-  };
+  const uniqueUsinas = useMemo(() => {
+    const set = new Set<string>();
+    usinas.forEach((u) => { if (u.usina) set.add(u.usina); });
+    return ['TODAS', ...Array.from(set).sort()];
+  }, [usinas]);
+
+  const uniqueRazoes = useMemo(() => {
+    const set = new Set<string>();
+    usinas.forEach((u) => { if (u.razaoSocial && u.razaoSocial !== 'Pendente') set.add(u.razaoSocial); });
+    return ['TODAS', ...Array.from(set).sort()];
+  }, [usinas]);
+
+  const ufs = useMemo(() => {
+    const set = new Set<string>();
+    usinas.forEach((u) => { if (u.uf) set.add(u.uf); });
+    return ['TODAS', ...Array.from(set).sort()];
+  }, [usinas]);
+
+  const disCos = useMemo(() => {
+    const set = new Set<string>();
+    usinas.forEach((u) => { if (u.concessionaria) set.add(u.concessionaria); });
+    return ['TODAS', ...Array.from(set).sort()];
+  }, [usinas]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-16 space-y-3 bg-white border border-slate-200 rounded-2xl shadow-xs">
+        <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+        <span className="text-sm font-bold text-slate-700">Carregando dados da planilha do Google Sheets...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -361,11 +247,20 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
               Limpar Filtros
             </button>
           )}
+
+          <button
+            onClick={carregarGoogleSheets}
+            className="flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 transition-colors"
+            title="Recarregar dados da planilha"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+            <span>Atualizar</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-600 font-medium">
-            Exibindo <strong className="text-slate-900">{filteredUsinas.length}</strong> de {initialUsinas.length} usinas
+            Exibindo <strong className="text-slate-900">{filteredUsinas.length}</strong> de {usinas.length} usinas
           </span>
           <button
             onClick={() => exportUsinasToExcel(filteredUsinas)}
@@ -379,11 +274,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
       {/* Grid de Cartões */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredUsinas.map((u, idx) => {
-          const cardKey = u.id || `card_${idx}`;
-          const usinaTitulo = u.usina || u.nome || `Usina ${idx + 1}`;
-          const siglaExibida = u.siglaNova || u.siglaAntiga || u.sigla || '';
-          const d = resolveCampos(u);
+        {filteredUsinas.map((d) => {
+          const cardKey = d.id;
+          const siglaExibida = d.siglaNova || d.siglaAntiga || '';
 
           return (
             <div 
@@ -396,10 +289,10 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
-                        {u.uf || 'UF'}
+                        {d.uf || 'UF'}
                       </span>
                       <h4 className="font-extrabold text-slate-900 group-hover:text-amber-700 transition-colors text-sm">
-                        {usinaTitulo}
+                        {d.usina}
                       </h4>
                     </div>
                     {siglaExibida && (
@@ -408,16 +301,6 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       </div>
                     )}
                   </div>
-                  
-                  {onUpdateUsinas && (
-                    <button
-                      onClick={() => openEditModal(u)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
-                      title="Editar Usina"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
 
                 <div className="pt-3 space-y-3">
@@ -474,7 +357,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       </div>
                     )}
 
-                    {/* Email do Gestor (Coluna P) - Trava de segurança para não exibir CNPJ */}
+                    {/* Email do Gestor (Coluna P) */}
                     {d.emailGestor ? (
                       <div className="flex items-center justify-between gap-1 bg-white p-2 rounded-lg border border-sky-200">
                         <div className="flex items-center gap-1.5 min-w-0">
@@ -527,12 +410,12 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       {/* Cód. Cliente (Coluna H) */}
                       <div className="flex justify-between items-center bg-white px-2.5 py-1 rounded-md border border-slate-200/80">
                         <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">CÓD. CLIENTE:</span>
-                        <span className="font-bold text-slate-900">{d.codCliente}</span>
+                        <span className="font-bold text-slate-900">{d.codigoCliente}</span>
                       </div>
                       {/* Instalação Antiga (Coluna I) */}
                       <div className="flex justify-between items-center bg-white px-2.5 py-1 rounded-md border border-slate-200/80">
                         <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">INSTALAÇÃO ANTIGA (UG):</span>
-                        <span className="font-bold text-slate-800">{d.instAntiga}</span>
+                        <span className="font-bold text-slate-800">{d.codigoInstalacaoAntigaUG}</span>
                       </div>
                       {/* Instalação Nova (Coluna J) */}
                       <div className="flex justify-between items-center bg-amber-50 px-2.5 py-1 rounded-md border border-amber-300">
@@ -540,7 +423,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                           <span className="text-amber-900 font-sans text-[10px] uppercase font-bold">INSTALAÇÃO NOVA (UG):</span>
                           <span className="text-[8px] bg-amber-600 text-white font-extrabold px-1 rounded uppercase">Nova</span>
                         </div>
-                        <span className="font-extrabold text-amber-950">{d.instNova}</span>
+                        <span className="font-extrabold text-amber-950">{d.codigoInstalacaoNovaUG}</span>
                       </div>
                       {/* Medidor (Coluna K) */}
                       <div className="flex justify-between items-center bg-amber-50/50 px-2.5 py-1 rounded-md border border-amber-200/80">
@@ -560,8 +443,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       {d.endereco}
                     </p>
                     
-                    {/* Ponto de Referência embaixo do endereço */}
-                    {d.pontoReferencia && (
+                    {d.pontoReferencia && d.pontoReferencia !== 'N/A' && (
                       <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg p-2 text-xs text-amber-950 flex items-start gap-1.5 shadow-2xs">
                         <Navigation className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
                         <div>
@@ -574,7 +456,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                 </div>
               </div>
 
-              {d.googleMapsUrl && (
+              {d.googleMapsUrl && d.googleMapsUrl.startsWith('http') && (
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                   <a
                     href={d.googleMapsUrl}
@@ -591,157 +473,6 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           );
         })}
       </div>
-
-      {/* Modal de Edição */}
-      {editingUsina && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-slate-900 text-sm">Editar Dados da Usina</h3>
-              <button onClick={() => setEditingUsina(null)} className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveModal} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-800 block">Razão Social:</label>
-                <input
-                  type="text"
-                  value={editRazaoSocial}
-                  onChange={(e) => setEditRazaoSocial(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-800 block">CNPJ:</label>
-                <input
-                  type="text"
-                  value={editCnpj}
-                  onChange={(e) => setEditCnpj(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-800 block">Contato Concessionária (Coluna G):</label>
-                <input
-                  type="text"
-                  value={editContatoConc}
-                  onChange={(e) => setEditContatoConc(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 block">Cód. Cliente (Coluna H):</label>
-                  <input
-                    type="text"
-                    value={editCodigoCliente}
-                    onChange={(e) => setEditCodigoCliente(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block">Medidor (Coluna K):</label>
-                  <input
-                    type="text"
-                    value={editMedidor}
-                    onChange={(e) => setEditMedidor(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block">Instalação Antiga UG (Coluna I):</label>
-                  <input
-                    type="text"
-                    value={editInstAntiga}
-                    onChange={(e) => setEditInstAntiga(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-amber-900 block">Instalação Nova UG (Coluna J):</label>
-                  <input
-                    type="text"
-                    value={editInstNova}
-                    onChange={(e) => setEditInstNova(e.target.value)}
-                    className="w-full bg-amber-50 border border-amber-300 rounded-lg px-2.5 py-1.5"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-800 block">Nome do Gestor (Coluna P):</label>
-                <input
-                  type="text"
-                  value={editNomeGestor}
-                  onChange={(e) => setEditNomeGestor(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-800 block">E-mail do Gestor (Coluna P):</label>
-                <input
-                  type="email"
-                  value={editEmailGestor}
-                  onChange={(e) => setEditEmailGestor(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-800 block">Contato / Telefone Gestor (Coluna Q):</label>
-                <input
-                  type="text"
-                  value={editTelGestor}
-                  onChange={(e) => setEditTelGestor(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-800 block">Endereço da Usina (Coluna R):</label>
-                <input
-                  type="text"
-                  value={editEndereco}
-                  onChange={(e) => setEditEndereco(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-800 block">Ponto de Referência (Coluna S):</label>
-                <input
-                  type="text"
-                  value={editPontoRef}
-                  onChange={(e) => setEditPontoRef(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingUsina(null)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-amber-700 text-white font-bold"
-                >
-                  Salvar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
