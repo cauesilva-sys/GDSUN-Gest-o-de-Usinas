@@ -12,6 +12,13 @@ function normalizeKey(key: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
+export interface ReclamacoesImportResult {
+  totalRows: number;
+  matchedCount: number;
+  unmatchedCount: number;
+  updatedUsinas: UsinaConcessionaria[];
+}
+
 export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
   try {
     const resultRaw = Papa.parse<string[]>(csvText, {
@@ -30,123 +37,120 @@ export function parseUsinasCsv(csvText: string): UsinaConcessionaria[] {
       if (!cols || cols.length < 2 || !cols[1]) continue;
 
       const getVal = (colIdx: number, ...searchTerms: string[]): string => {
+        // Tenta pelo índice exato da coluna
+        if (cols[colIdx] !== undefined && String(cols[colIdx]).trim() !== '') {
+          return String(cols[colIdx]).trim();
+        }
+        // Fallback por termo do cabeçalho
         for (const term of searchTerms) {
-          const foundIdx = headers.findIndex((h) => h.includes(term));
+          const norm = normalizeKey(term);
+          const foundIdx = headers.findIndex((h) => h.includes(norm));
           if (foundIdx !== -1 && cols[foundIdx] !== undefined && String(cols[foundIdx]).trim() !== '') {
             return String(cols[foundIdx]).trim();
           }
         }
-        return cols[colIdx] ? String(cols[colIdx]).trim() : '';
+        return '';
       };
 
-      const nomeUsina = getVal(1, 'usina', 'nome') || `Usina ${i}`;
-      if (nomeUsina.toLowerCase() === 'usina') continue;
+      // Mapeamento das colunas da folha de cálculo
+      const uf = getVal(0, 'uf', 'estado');
+      const usina = getVal(1, 'usina', 'nome da usina', 'nome');
+      const sigla = getVal(2, 'sigla', 'sigla antiga', 'sigla nova');
+      const concessionaria = getVal(3, 'concessionaria', 'disco', 'distribuidora');
+      const razaoSocialCliente = getVal(4, 'razao social', 'titular', 'cliente');
+      const cnpjCliente = getVal(5, 'cnpj');
 
-      const sigla = getVal(3, 'siglanova', 'siglaantiga', 'sigla') || cols[2] || '';
-      const uf = getVal(4, 'uf', 'estado') || '';
-      const concessionaria = getVal(5, 'concessionaria', 'disco', 'distribuidora') || 'Não informada';
-      const codigoCliente = getVal(6, 'codigocliente', 'codcliente', 'cliente') || 'N/A';
-      const instalacaoAntiga = getVal(7, 'instalacaoantiga', 'antiga', 'ug') || 'N/A';
-      const instalacaoNova = getVal(8, 'instalacaonova', 'nova') || 'N/A';
-      const medidor = getVal(9, 'medidor') || 'N/A';
-      const razaoSocial = getVal(10, 'razaosocial', 'titular', 'razao') || 'N/A';
-      const cnpj = getVal(11, 'cnpj') || 'N/A';
+      // Colunas especificadas
+      const contatoDisCo = getVal(6, 'contato concessionaria', 'telefone concessionaria'); // Coluna G (índice 6)
+      const codigoCliente = getVal(7, 'cod cliente', 'codigo cliente');                    // Coluna H (índice 7)
+      const instalacaoAntiga = getVal(8, 'instalacao antiga', 'ug antiga');                // Coluna I (índice 8)
+      const instalacaoNova = getVal(9, 'instalacao nova', 'ug nova');                      // Coluna J (índice 9)
+      const medidor = getVal(10, 'medidor');                                               // Coluna K (índice 10)
+      const emailAgente = getVal(15, 'email gestor', 'email agente');                       // Coluna P (índice 15)
+      const telAgente = getVal(16, 'contato gestor', 'telefone gestor');                   // Coluna Q (índice 16)
+      const endereco = getVal(17, 'endereco', 'logradouro');                                // Coluna R (índice 17)
+      const pontoReferencia = getVal(18, 'ponto de referencia', 'referencia');             // Coluna S (índice 18)
 
-      // Preenche com valores seguros em texto para nunca disparar Cannot read properties of undefined
-      const usinaItem: any = {
+      usinas.push({
         id: `usina_${i}`,
-        nome: String(nomeUsina || ''),
-        usinaNome: String(nomeUsina || ''),
-        sigla: String(sigla || ''),
-        siglaAntiga: String(cols[2] || sigla || ''),
-        siglaNova: String(sigla || ''),
-        uf: String(uf || ''),
-        concessionaria: String(concessionaria || 'Não informada'),
-        disco: String(concessionaria || 'Não informada'),
-        distribuidora: String(concessionaria || 'Não informada'),
-        codigoCliente: String(codigoCliente || 'N/A'),
-        instalacaoAntiga: String(instalacaoAntiga || 'N/A'),
-        instalacaoNova: String(instalacaoNova || 'N/A'),
-        medidor: String(medidor || 'N/A'),
-        razaoSocial: String(razaoSocial || 'N/A'),
-        cnpj: String(cnpj || 'N/A'),
-        endereco: 'Endereço não informado',
-        pontoReferencia: '',
-        nomeAgente: 'Clientes Corporativos',
-        emailAgente: '',
-        telefoneAgente: '',
-        status: 'Ativa',
-        tipoConexao: 'Fibra',
-        provedor: 'Pendente',
-      };
-
-      usinas.push(usinaItem as UsinaConcessionaria);
+        uf,
+        usina,
+        nome: usina,
+        sigla,
+        siglaAntiga: sigla,
+        siglaNova: sigla,
+        concessionaria,
+        razaoSocial: razaoSocialCliente,
+        razaoSocialCliente,
+        cnpj: cnpjCliente,
+        cnpjCliente,
+        contatoDisCo,
+        codigoCliente,
+        codigoInstalacaoAntigaUG: instalacaoAntiga,
+        codigoInstalacaoNovaUG: instalacaoNova,
+        codigoInstalacaoUG: instalacaoNova || instalacaoAntiga,
+        medidor,
+        emailAgenteRelacionamento: emailAgente,
+        telefoneAgenteRelacionamento: telAgente,
+        whatsappDisCo: telAgente,
+        endereco,
+        pontoReferencia,
+      } as UsinaConcessionaria);
     }
 
     return usinas;
-  } catch (err) {
-    console.error('Erro no parser de usinas:', err);
+  } catch (error) {
+    console.error('Erro ao converter CSV de usinas:', error);
     return [];
   }
 }
 
-export function parseProvedoresCsv(
+export function mergeReclamacoesDistribuidorasCsv(
   csvText: string,
-  prevProvedores: ProvedorInternet[],
-  usinas: UsinaConcessionaria[]
-): ProvedorInternet[] {
-  try {
-    const result = Papa.parse<Record<string, string>>(csvText, {
-      header: true,
-      skipEmptyLines: 'greedy',
-    });
+  currentUsinas: UsinaConcessionaria[]
+): ReclamacoesImportResult {
+  const parsed = parseUsinasCsv(csvText);
+  if (parsed.length === 0) {
+    return {
+      totalRows: 0,
+      matchedCount: 0,
+      unmatchedCount: 0,
+      updatedUsinas: currentUsinas,
+    };
+  }
 
-    if (!result.data || result.data.length === 0) return prevProvedores || [];
+  let matched = 0;
+  const updated = currentUsinas.map((u) => {
+    const match = parsed.find(
+      (p) =>
+        (p.usina && u.usina && normalizeKey(p.usina) === normalizeKey(u.usina)) ||
+        (p.siglaNova && u.siglaNova && normalizeKey(p.siglaNova) === normalizeKey(u.siglaNova)) ||
+        (p.siglaAntiga && u.siglaAntiga && normalizeKey(p.siglaAntiga) === normalizeKey(u.siglaAntiga))
+    );
 
-    return result.data.map((row, index) => {
-      const norm: Record<string, string> = {};
-      Object.keys(row || {}).forEach((k) => {
-        if (k) norm[normalizeKey(k)] = row[k] ? String(row[k]).trim() : '';
-      });
-
-      const nome = norm['usina'] || norm['nome'] || `Usina ${index + 1}`;
-      const master = getProvedorMasterInfo ? getProvedorMasterInfo(nome) : {} as any;
-
+    if (match) {
+      matched++;
       return {
-        id: `provedor_${index + 1}`,
-        usinaNome: String(nome || ''),
-        provedor: String(norm['provedor'] || master?.provedorPadrao || 'Provedor Local'),
-        tipoConexao: String(norm['tipoconexao'] || master?.tipoConexao || 'Fibra'),
-        contatoProvedor: String(norm['contatoprovedor'] || norm['contato'] || 'Pendente'),
-        razaoSocial: String(norm['razaosocial'] || master?.razaoSocial || 'Pendente'),
-        cnpj: String(norm['cnpj'] || master?.cnpj || 'Pendente'),
-      } as unknown as ProvedorInternet;
-    });
-  } catch (err) {
-    console.error('Erro no parser de provedores:', err);
-    return prevProvedores || [];
-  }
-}
+        ...u,
+        contatoDisCo: match.contatoDisCo || u.contatoDisCo,
+        codigoCliente: match.codigoCliente || u.codigoCliente,
+        codigoInstalacaoAntigaUG: match.codigoInstalacaoAntigaUG || u.codigoInstalacaoAntigaUG,
+        codigoInstalacaoNovaUG: match.codigoInstalacaoNovaUG || u.codigoInstalacaoNovaUG,
+        medidor: match.medidor || u.medidor,
+        emailAgenteRelacionamento: match.emailAgenteRelacionamento || u.emailAgenteRelacionamento,
+        telefoneAgenteRelacionamento: match.telefoneAgenteRelacionamento || u.telefoneAgenteRelacionamento,
+        whatsappDisCo: match.whatsappDisCo || u.whatsappDisCo,
+        endereco: match.endereco || u.endereco,
+        pontoReferencia: match.pontoReferencia || u.pontoReferencia,
+      };
+    }
+    return u;
+  });
 
-export function formatGoogleSheetsExportUrl(url: string): string {
-  if (!url) return '';
-  const matchId = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  if (!matchId) return url;
-  const sheetId = matchId[1];
-
-  let gid = '0';
-  const matchGid = url.match(/gid=([0-9]+)/);
-  if (matchGid) {
-    gid = matchGid[1];
-  }
-
-  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-}
-
-export function mergeReclamacoesDistribuidorasCsv(csvText: string, currentUsinas: UsinaConcessionaria[]) {
   return {
-    matchedCount: 0,
-    unmatchedRows: 0,
-    updatedUsinas: currentUsinas,
+    totalRows: parsed.length,
+    matchedCount: matched,
+    unmatchedCount: parsed.length - matched,
+    updatedUsinas: updated,
   };
 }
