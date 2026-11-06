@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { UsinaConcessionaria } from '../types';
+import { initialUsinas } from '../data/initialData';
 import { exportUsinasToExcel } from '../utils/excelExporter';
 import { 
   Building2, 
@@ -15,7 +16,8 @@ import {
   Pencil,
   X,
   User,
-  Mail
+  Mail,
+  ExternalLink
 } from 'lucide-react';
 
 interface ConcessionariasViewProps {
@@ -53,62 +55,104 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   const [editEndereco, setEditEndereco] = useState<string>('');
   const [editPontoRef, setEditPontoRef] = useState<string>('');
 
-  // MAPEAMENTO CORRETO DOS CAMPOS INVERTIDOS DO BANCO DE DADOS
+  // 1. Limpa o cache antigo que estava com os dados trocados no navegador
+  useEffect(() => {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.includes('usina') || k.includes('gdsun') || k.includes('storage') || k.includes('data'))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch (e) {
+      // Ignora erro de storage restrito
+    }
+  }, []);
+
+  // 2. Mapeamento 100% blindado com a base autêntica do initialData
   const resolveCampos = (u: any) => {
-    // 1. RAZÃO SOCIAL & CNPJ
-    // No initialData: u.razaoSocial contém o nome da empresa ("CLARO SA"), e u.cnpj contém o CNPJ formatado
-    const razaoSocial = u.razaoSocial || u.razaoSocialCliente || 'Pendente';
-    const cnpj = u.cnpj || u.cnpjCliente || 'Pendente';
+    // Busca a usina correspondente na base limpa do initialData
+    const base: any = (initialUsinas || []).find(
+      (b) => b.id === u.id || b.usina === u.usina || b.nome === u.nome || b.coser === u.coser
+    ) || {};
 
-    // 2. CONCESSIONÁRIA & CONTATO DA CONCESSIONÁRIA (Coluna G)
-    const concessionaria = u.concessionaria || u.disco || 'Não informada';
+    // BLOCO 1: RAZÃO SOCIAL & CNPJ
+    // Garante que razão social seja o nome e nunca o medidor numérico
+    let razaoSocial = base.razaoSocial || base.razaoSocialCliente || u.razaoSocial || u.razaoSocialCliente || 'Pendente';
+    let cnpj = base.cnpj || base.cnpjCliente || u.cnpj || u.cnpjCliente || 'Pendente';
+
+    // Se por acaso veio invertido (Razão com números e CNPJ com o nome da empresa)
+    if (/^\d{5,}$/.test(String(razaoSocial).trim()) && cnpj && !/^\d{2}\./.test(cnpj)) {
+      const temp = razaoSocial;
+      razaoSocial = cnpj;
+      cnpj = temp;
+    }
+
+    // BLOCO 2: CONCESSIONÁRIA & CONTATO (COLUNA G)
+    const concessionaria = base.concessionaria || u.concessionaria || u.disco || 'Não informada';
     
-    // O campo u.contatoDisCo do initialData guarda o telefone/contato da concessionária (ex: 0800 770 4140)
-    // Se contiver e-mail misturado (ex: grandesclientes@edp.com.br / 0800...), separamos:
+    // Contato da concessionária (Coluna G)
     let contatoConcessionaria = '';
-    let emailGestor = u.emailAgenteRelacionamento || '';
-    let telGestor = u.telefoneAgenteRelacionamento || u.whatsappDisCo || '';
-    let nomeGestor = u.nomeAgenteRelacionamento || '';
+    const rawContato = String(base.contatoDisCo || u.contatoDisCo || '').trim();
+    if (rawContato) {
+      if (rawContato.includes('@')) {
+        const parts = rawContato.split('/');
+        const telPart = parts.find((p) => !p.includes('@'));
+        contatoConcessionaria = telPart ? telPart.trim() : '';
+      } else {
+        contatoConcessionaria = rawContato;
+      }
+    }
 
-    const rawContato = String(u.contatoDisCo || '').trim();
+    // BLOCO 3: AGENTE / GESTOR DE RELACIONAMENTO (COLUNAS P E Q)
+    let nomeGestor = base.nomeAgenteRelacionamento || u.nomeAgenteRelacionamento || '';
+    let emailGestor = base.emailAgenteRelacionamento || u.emailAgenteRelacionamento || '';
+    let telGestor = base.telefoneAgenteRelacionamento || base.whatsappDisCo || u.telefoneAgenteRelacionamento || u.whatsappDisCo || '';
+
+    // Se o contatoDisCo tem e-mail do gestor (ex: grandesclientes@edp... ou aderlan.barroso@...)
     if (rawContato.includes('@')) {
       const parts = rawContato.split('/');
-      const emailPart = parts.find(p => p.includes('@'));
-      const telPart = parts.find(p => !p.includes('@'));
-      if (emailPart) emailGestor = emailPart.trim();
-      if (telPart) contatoConcessionaria = telPart.trim();
-    } else {
-      contatoConcessionaria = rawContato;
+      const mailPart = parts.find((p) => p.includes('@'));
+      const phonePart = parts.find((p) => !p.includes('@'));
+      if (!emailGestor && mailPart) emailGestor = mailPart.trim();
+      if (!telGestor && phonePart) telGestor = phonePart.trim();
     }
 
-    // 3. AGENTE / GESTOR DE RELACIONAMENTO (Colunas P e Q)
-    // Se o nome do gestor não foi preenchido, define o valor padrão
     if (!nomeGestor || nomeGestor === 'Clientes Corporativos') {
-      nomeGestor = emailGestor ? 'Gestor de Relacionamento' : '';
+      if (emailGestor.toLowerCase().includes('aderlan')) {
+        nomeGestor = 'Aderlan Barroso';
+      } else if (emailGestor.toLowerCase().includes('edp')) {
+        nomeGestor = 'Grandes Clientes (EDP)';
+      } else if (emailGestor.toLowerCase().includes('cpfl')) {
+        nomeGestor = 'Grandes Clientes (CPFL)';
+      } else if (emailGestor) {
+        nomeGestor = 'Gestor de Relacionamento';
+      } else {
+        nomeGestor = 'Gestor de Relacionamento';
+      }
     }
 
-    // 4. DADOS CADASTRAIS DA USINA (UG)
-    // Cód. Cliente (Coluna H): no initialData foi parar em u.codigoCliente
-    const codCliente = u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A';
+    // BLOCO 4: DADOS CADASTRAIS DA USINA (COLUNAS H, I, J, K)
+    // Cód. Cliente (Coluna H)
+    let codCliente = base.codigoCliente || u.codigoCliente || 'N/A';
+    if (codCliente.includes('@') || codCliente.includes('0800')) {
+      codCliente = base.codigoCliente && !base.codigoCliente.includes('@') ? base.codigoCliente : 'N/A';
+    }
 
-    // Instalação Antiga UG (Coluna I): no initialData foi parar em u.codigoInstalacaoAntigaUG
-    const instAntiga = u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' 
-      ? u.codigoInstalacaoAntigaUG 
-      : 'N/A';
+    // Instalação Antiga UG (Coluna I)
+    const instAntiga = base.codigoInstalacaoAntigaUG || u.codigoInstalacaoAntigaUG || 'N/A';
 
-    // Instalação Nova UG (Coluna J): no initialData foi parar em u.codigoInstalacaoNovaUG ou u.codigoInstalacaoUG
-    const instNova = u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A'
-      ? u.codigoInstalacaoNovaUG
-      : (u.codigoInstalacaoUG && u.codigoInstalacaoUG !== 'N/A' ? u.codigoInstalacaoUG : 'N/A');
+    // Instalação Nova UG (Coluna J)
+    const instNova = base.codigoInstalacaoNovaUG || u.codigoInstalacaoNovaUG || base.codigoInstalacaoUG || u.codigoInstalacaoUG || 'N/A';
 
-    // Medidor (Coluna K): no initialData o número do medidor foi parar na propriedade u.medidor
-    const medidor = u.medidor && u.medidor !== 'N/A' ? u.medidor : 'N/A';
+    // Medidor (Coluna K)
+    const medidor = base.medidor || u.medidor || 'N/A';
 
-    // 5. ENDEREÇO (Coluna R) & PONTO DE REFERÊNCIA (Coluna S)
-    const endereco = u.endereco || 'Endereço não informado';
-    const pontoReferencia = u.pontoReferencia && u.pontoReferencia.trim() !== '' && u.pontoReferencia.toUpperCase() !== 'N/A'
-      ? u.pontoReferencia
-      : '';
+    // BLOCO 5: ENDEREÇO (COLUNA R) & PONTO DE REFERÊNCIA (COLUNA S)
+    const endereco = base.endereco || u.endereco || 'Endereço não informado';
+    const pontoReferencia = base.pontoReferencia || u.pontoReferencia || '';
 
     return {
       razaoSocial,
@@ -123,15 +167,17 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       instNova,
       medidor,
       endereco,
-      pontoReferencia
+      pontoReferencia,
+      googleMapsUrl: base.googleMapsUrl || u.googleMapsUrl
     };
   };
 
+  // Filtragem
   const filteredUsinas = useMemo(() => {
-    if (!Array.isArray(usinas)) return [];
+    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
     const query = String(searchQuery || '').toLowerCase().trim();
 
-    return usinas.filter((item) => {
+    return list.filter((item) => {
       if (!item) return false;
       const d = resolveCampos(item);
       const usinaNome = String(item.usina || item.nome || '').trim();
@@ -159,8 +205,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   }, [usinas, searchQuery, selectedUsinaFilter, selectedUf, selectedDisCo, selectedRazaoFilter]);
 
   const uniqueUsinas = useMemo(() => {
+    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
     const set = new Set<string>();
-    (usinas || []).forEach((u) => {
+    list.forEach((u) => {
       const nome = String(u.usina || u.nome || '').trim();
       if (nome) set.add(nome);
     });
@@ -168,25 +215,28 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   }, [usinas]);
 
   const uniqueRazoes = useMemo(() => {
+    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
     const set = new Set<string>();
-    (usinas || []).forEach((u) => {
-      const r = u.razaoSocial || u.razaoSocialCliente;
-      if (r) set.add(r);
+    list.forEach((u) => {
+      const d = resolveCampos(u);
+      if (d.razaoSocial && d.razaoSocial !== 'Pendente') set.add(d.razaoSocial);
     });
     return ['TODAS', ...Array.from(set).sort()];
   }, [usinas]);
 
   const ufs = useMemo(() => {
+    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
     const set = new Set<string>();
-    (usinas || []).forEach((u) => {
+    list.forEach((u) => {
       if (u.uf) set.add(u.uf);
     });
     return ['TODAS', ...Array.from(set).sort()];
   }, [usinas]);
 
   const disCos = useMemo(() => {
+    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
     const set = new Set<string>();
-    (usinas || []).forEach((u) => {
+    list.forEach((u) => {
       if (u.concessionaria) set.add(u.concessionaria);
     });
     return ['TODAS', ...Array.from(set).sort()];
@@ -219,7 +269,8 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     e.preventDefault();
     if (!editingUsina || !onUpdateUsinas) return;
 
-    const updated = usinas.map((u) => {
+    const list = Array.isArray(usinas) && usinas.length > 0 ? usinas : initialUsinas;
+    const updated = list.map((u) => {
       if (u.id === editingUsina.id) {
         return {
           ...u,
@@ -315,7 +366,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-600 font-medium">
-            Exibindo <strong className="text-slate-900">{filteredUsinas.length}</strong> de {usinas.length} usinas
+            Exibindo <strong className="text-slate-900">{filteredUsinas.length}</strong> de {initialUsinas.length} usinas
           </span>
           <button
             onClick={() => exportUsinasToExcel(filteredUsinas)}
@@ -377,11 +428,11 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       <FileText className="w-3 h-3 text-amber-700" />
                       <span>RAZÃO SOCIAL & CNPJ</span>
                     </div>
-                    {/* Aqui exibe o nome da empresa (Razão Social) */}
+                    {/* Nome real da empresa */}
                     <div className="font-bold text-slate-900 text-xs leading-snug">
                       {d.razaoSocial}
                     </div>
-                    {/* Aqui exibe o CNPJ */}
+                    {/* CNPJ real */}
                     <div className="flex items-center justify-between font-mono text-[11px] text-amber-900 font-extrabold pt-0.5">
                       <span>CNPJ: {d.cnpj}</span>
                       {d.cnpj !== 'Pendente' && (
@@ -396,7 +447,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                     </div>
                   </div>
 
-                  {/* BLOCO 2: CONCESSIONÁRIA + CONTATO NA LINHA DE BAIXO (Coluna G) */}
+                  {/* BLOCO 2: CONCESSIONÁRIA + CONTATO NA LINHA DE BAIXO (COLUNA G) */}
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-500 font-semibold">Concessionária:</span>
@@ -405,7 +456,6 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         <span>{d.concessionaria}</span>
                       </span>
                     </div>
-                    {/* Linha de baixo: Contato da Concessionária (Coluna G) */}
                     {d.contatoConcessionaria && (
                       <div className="flex items-center justify-between text-[11px] text-slate-700 pt-1 border-t border-slate-200/60 font-mono">
                         <span className="text-slate-400 font-sans text-[10px] uppercase font-semibold">Contato Concessionária:</span>
@@ -414,7 +464,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                     )}
                   </div>
 
-                  {/* BLOCO 3: AGENTE / GESTOR DE RELACIONAMENTO (Email na Col P e Contato na Col Q) */}
+                  {/* BLOCO 3: AGENTE DE RELACIONAMENTO (COLUNAS P E Q) */}
                   <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3 space-y-2">
                     <div className="text-[10px] uppercase tracking-wider font-extrabold text-sky-800 flex items-center gap-1">
                       <User className="w-3 h-3 text-sky-600" />
@@ -470,7 +520,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                     )}
                   </div>
 
-                  {/* BLOCO 4: DADOS CADASTRAIS DA USINA (Colunas H, I, J, K) */}
+                  {/* BLOCO 4: DADOS CADASTRAIS DA USINA (COLUNAS H, I, J, K) */}
                   <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 space-y-1.5">
                     <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
                       <Hash className="w-3 h-3 text-amber-600" />
@@ -503,7 +553,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                     </div>
                   </div>
 
-                  {/* BLOCO 5: ENDEREÇO (Coluna R) + PONTO DE REFERÊNCIA (Coluna S) */}
+                  {/* BLOCO 5: ENDEREÇO (COLUNA R) + PONTO DE REFERÊNCIA (COLUNA S) */}
                   <div className="space-y-1.5 pt-1 border-t border-slate-100">
                     <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-sky-600" />
@@ -526,6 +576,20 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   </div>
                 </div>
               </div>
+
+              {d.googleMapsUrl && (
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <a
+                    href={d.googleMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-900 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Abrir no Google Maps</span>
+                  </a>
+                </div>
+              )}
             </div>
           );
         })}
