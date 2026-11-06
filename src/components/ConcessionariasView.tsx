@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { UsinaConcessionaria } from '../types';
-import { parseContacts } from '../utils/whatsapp';
 import { exportUsinasToExcel } from '../utils/excelExporter';
 import { mergeReclamacoesDistribuidorasCsv, ReclamacoesImportResult } from '../utils/csvParser';
 import { 
@@ -14,16 +13,11 @@ import {
   Hash, 
   FileText, 
   Filter, 
-  MessageSquareCode,
-  Sparkles,
   FileSpreadsheet,
   Navigation,
-  Upload,
   Pencil,
   X,
-  CheckCircle2,
   User,
-  AtSign,
   Mail
 } from 'lucide-react';
 
@@ -45,10 +39,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   const [selectedUf, setSelectedUf] = useState<string>('TODAS');
   const [selectedDisCo, setSelectedDisCo] = useState<string>('TODAS');
   const [selectedRazaoFilter, setSelectedRazaoFilter] = useState<string>('TODAS');
-  const [selectedEmailFilter, setSelectedEmailFilter] = useState<'TODOS' | 'COM_EMAIL' | 'SEM_EMAIL'>('TODOS');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Edit single usina modal
+  // Modal states
   const [editingUsina, setEditingUsina] = useState<UsinaConcessionaria | null>(null);
   const [editRazaoSocial, setEditRazaoSocial] = useState<string>('');
   const [editCnpj, setEditCnpj] = useState<string>('');
@@ -65,81 +58,86 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper para identificar CNPJ com regex
-  const isCnpjPattern = (val: string) => {
-    return /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(val.trim());
-  };
-
-  // Helper para identificar se uma string é e-mail
-  const isEmailPattern = (val: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+/.test(val.trim());
-  };
-
-  // Extrai e sanitiza os dados de cada usina corrigindo as inversões de coluna
-  const extractUsinaData = (u: any) => {
-    // 1. Identificar Razão Social vs Código do Cliente vs CNPJ
-    let razaoSocial = u.razaoSocialCliente || u.razaoSocial || '';
-    let codCliente = u.codigoCliente || '';
-    let cnpj = u.cnpjCliente || u.cnpj || '';
-
-    // Se o código do cliente contém @ ou /, significa que pegou contato por engano
-    let emailCandidato = '';
-    let foneCandidato = '';
-
-    if (codCliente.includes('@')) {
-      const parts = codCliente.split('/');
-      emailCandidato = parts[0]?.trim() || '';
-      foneCandidato = parts.slice(1).join('/').trim() || '';
-      codCliente = '';
+  // Reseta qualquer cache salvo localmente para forçar a nova estrutura limpa
+  useEffect(() => {
+    try {
+      localStorage.removeItem('usinas_concessionarias_cache');
+      localStorage.removeItem('gdsun_usinas_data');
+    } catch (e) {
+      // Ignora erro de storage
     }
+  }, []);
 
-    // Se a razão social parece um código numérico (ex: 40162857) e o codCliente está vazio ou é e-mail
-    if (/^\d{5,15}$/.test(String(razaoSocial).trim())) {
-      const numCode = razaoSocial;
-      // Se CNPJ tem nome de empresa (ex: CLARO SA, RAIA DROGASIL SA)
-      if (cnpj && !isCnpjPattern(cnpj) && !/^\d+$/.test(cnpj)) {
-        razaoSocial = cnpj;
+  // Extrai e organiza os campos reais baseado nos dados recebidos
+  const parseCardData = (u: any) => {
+    // 1. Razão Social & CNPJ
+    const razaoSocial = u.razaoSocialCliente || u.razaoSocial || 'Pendente';
+    const cnpj = u.cnpjCliente || u.cnpj || 'Pendente';
+
+    // 2. Concessionária e Contato na linha de baixo (Coluna G)
+    const concessionaria = u.concessionaria || u.disco || u.distribuidora || 'Não informada';
+    
+    // Separa e-mail e telefone se vieram misturados em contatoDisCo
+    let contatoConcessionaria = '';
+    let emailGestor = u.emailAgenteRelacionamento || '';
+    let telGestor = u.telefoneAgenteRelacionamento || u.whatsappDisCo || '';
+    let nomeGestor = u.nomeAgenteRelacionamento || 'Clientes Corporativos';
+
+    const rawContato = String(u.contatoDisCo || '').trim();
+    if (rawContato) {
+      if (rawContato.includes('@')) {
+        const parts = rawContato.split('/');
+        const partWithEmail = parts.find(p => p.includes('@'));
+        const partWithPhone = parts.find(p => !p.includes('@'));
+        if (!emailGestor && partWithEmail) emailGestor = partWithEmail.trim();
+        if (!telGestor && partWithPhone) telGestor = partWithPhone.trim();
+      } else {
+        contatoConcessionaria = rawContato;
       }
-      codCliente = numCode;
-      cnpj = '';
     }
 
-    // Se o agente de relacionamento é na verdade um CNPJ (ex: 40.432.544/0081-21)
-    let emailAgente = u.emailAgenteRelacionamento || u.emailAgente || emailCandidato || '';
-    let foneAgente = u.telefoneAgenteRelacionamento || u.whatsappDisCo || foneCandidato || '';
-    let nomeAgente = u.nomeAgenteRelacionamento || u.nomeAgente || 'Gestor de Relacionamento';
-
-    if (isCnpjPattern(emailAgente)) {
-      if (!cnpj || !isCnpjPattern(cnpj)) {
-        cnpj = emailAgente;
+    // 3. Dados Cadastrais da Usina (UG)
+    // Cód. Cliente: Coluna H
+    let codCliente = u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : '';
+    // Se o cód. cliente era na verdade o e-mail/telefone que veio errado da planilha anterior:
+    if (codCliente.includes('@') || codCliente.includes('0800')) {
+      if (!emailGestor && codCliente.includes('@')) {
+        emailGestor = codCliente.split('/')[0]?.trim() || '';
       }
-      emailAgente = emailCandidato;
+      codCliente = u.medidor || 'N/A';
     }
 
-    if (isCnpjPattern(nomeAgente)) {
-      if (!cnpj) cnpj = nomeAgente;
-      nomeAgente = 'Gestor de Relacionamento';
-    }
+    // Instalação Antiga (UG): Coluna I
+    const instAntiga = u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' 
+      ? u.codigoInstalacaoAntigaUG 
+      : (u.codigoInstalacaoUG || 'N/A');
 
-    // Contato Concessionária (Coluna G)
-    const contatoConcessionaria = u.contatoDisCo || u.contatoConcessionaria || (foneCandidato && !foneAgente ? foneCandidato : '');
+    // Instalação Nova (UG): Coluna J
+    const instNova = u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A'
+      ? u.codigoInstalacaoNovaUG
+      : 'N/A';
 
-    // Endereço e Ponto de Referência
-    const endereco = u.endereco || '';
-    const pontoReferencia = u.pontoReferencia || '';
+    // Medidor: Coluna K
+    const medidor = u.medidor && u.medidor !== 'N/A' ? u.medidor : 'N/A';
+
+    // 4. Endereço (Coluna R) e Ponto de Referência (Coluna S)
+    const endereco = u.endereco || 'Endereço não informado';
+    const pontoReferencia = u.pontoReferencia && u.pontoReferencia.trim() !== '' && u.pontoReferencia.toUpperCase() !== 'N/A'
+      ? u.pontoReferencia
+      : '';
 
     return {
-      razaoSocial: razaoSocial || 'Pendente',
-      cnpj: cnpj || 'Pendente',
-      concessionaria: u.concessionaria || u.disco || u.distribuidora || 'Não informada',
+      razaoSocial,
+      cnpj,
+      concessionaria,
       contatoConcessionaria,
-      nomeGestor: nomeAgente === 'Clientes Corporativos' ? 'Gestor de Relacionamento' : nomeAgente,
-      emailGestor: emailAgente,
-      contatoGestor: foneAgente,
+      nomeGestor,
+      emailGestor,
+      telGestor,
       codCliente: codCliente || 'N/A',
-      instAntiga: u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' ? u.codigoInstalacaoAntigaUG : (u.codigoInstalacaoUG || 'N/A'),
-      instNova: u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A' ? u.codigoInstalacaoNovaUG : 'N/A',
-      medidor: u.medidor && u.medidor !== 'N/A' ? u.medidor : 'N/A',
+      instAntiga,
+      instNova,
+      medidor,
       endereco,
       pontoReferencia
     };
@@ -152,7 +150,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
     return usinas.filter((item) => {
       if (!item) return false;
-      const data = extractUsinaData(item);
+      const data = parseCardData(item);
       const usinaNome = String(item.usina || item.nome || '').trim();
       const usinaUf = String(item.uf || '').trim();
 
@@ -172,8 +170,8 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
         data.codCliente.toLowerCase().includes(query) ||
         data.instNova.toLowerCase().includes(query) ||
         data.medidor.toLowerCase().includes(query) ||
-        data.emailGestor.toLowerCase().includes(query) ||
-        data.endereco.toLowerCase().includes(query)
+        data.endereco.toLowerCase().includes(query) ||
+        data.emailGestor.toLowerCase().includes(query)
       );
     });
   }, [usinas, searchQuery, selectedUsinaFilter, selectedUf, selectedDisCo, selectedRazaoFilter]);
@@ -187,6 +185,32 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     return ['TODAS', ...Array.from(set).sort()];
   }, [usinas]);
 
+  const uniqueRazoes = useMemo(() => {
+    const set = new Set<string>();
+    (usinas || []).forEach((u) => {
+      const r = u.razaoSocialCliente || u.razaoSocial;
+      if (r) set.add(r);
+    });
+    return ['TODAS', ...Array.from(set).sort()];
+  }, [usinas]);
+
+  const ufs = useMemo(() => {
+    const set = new Set<string>();
+    (usinas || []).forEach((u) => {
+      if (u.uf) set.add(u.uf);
+    });
+    return ['TODAS', ...Array.from(set).sort()];
+  }, [usinas]);
+
+  const disCos = useMemo(() => {
+    const set = new Set<string>();
+    (usinas || []).forEach((u) => {
+      const c = u.concessionaria;
+      if (c) set.add(c);
+    });
+    return ['TODAS', ...Array.from(set).sort()];
+  }, [usinas]);
+
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(key);
@@ -194,7 +218,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   };
 
   const openEditModal = (u: UsinaConcessionaria) => {
-    const data = extractUsinaData(u);
+    const data = parseCardData(u);
     setEditingUsina(u);
     setEditRazaoSocial(data.razaoSocial !== 'Pendente' ? data.razaoSocial : '');
     setEditCnpj(data.cnpj !== 'Pendente' ? data.cnpj : '');
@@ -204,7 +228,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     setEditMedidor(data.medidor !== 'N/A' ? data.medidor : '');
     setEditAgentName(data.nomeGestor);
     setEditAgentEmail(data.emailGestor);
-    setEditAgentPhone(data.contatoGestor);
+    setEditAgentPhone(data.telGestor);
     setEditContatoConcessionaria(data.contatoConcessionaria);
     setEditEndereco(data.endereco);
     setEditPontoReferencia(data.pontoReferencia);
@@ -231,7 +255,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           emailAgenteRelacionamento: editAgentEmail.trim(),
           telefoneAgenteRelacionamento: editAgentPhone.trim(),
           whatsappDisCo: editAgentPhone.trim(),
-          contatoDisCo: editContatoConcessionaria.trim(),
+          contatoDisCo: editContatoConcessionaria.trim() || editAgentPhone.trim(),
           endereco: editEndereco.trim(),
           pontoReferencia: editPontoReferencia.trim()
         };
@@ -245,13 +269,90 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Barra de Filtros */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center space-x-1.5 text-xs text-slate-600 font-bold bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200">
+            <Filter className="w-3.5 h-3.5 text-amber-600" />
+            <span>Filtros:</span>
+          </div>
+
+          <select
+            value={selectedUsinaFilter}
+            onChange={(e) => setSelectedUsinaFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-medium cursor-pointer"
+          >
+            {uniqueUsinas.map((u) => (
+              <option key={u} value={u}>{u === 'TODAS' ? 'Todas as Usinas' : u}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedRazaoFilter}
+            onChange={(e) => setSelectedRazaoFilter(e.target.value)}
+            className="bg-amber-50/70 border border-amber-200 rounded-xl px-2.5 py-1.5 text-amber-950 text-xs font-semibold cursor-pointer"
+          >
+            {uniqueRazoes.map((r) => (
+              <option key={r} value={r}>{r === 'TODAS' ? 'Todos os Clientes' : r}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedUf}
+            onChange={(e) => setSelectedUf(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-medium cursor-pointer"
+          >
+            {ufs.map((uf) => (
+              <option key={uf} value={uf}>{uf === 'TODAS' ? 'Todas UFs' : uf}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedDisCo}
+            onChange={(e) => setSelectedDisCo(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-medium cursor-pointer"
+          >
+            {disCos.map((d) => (
+              <option key={d} value={d}>{d === 'TODAS' ? 'Todas Concessionárias' : d}</option>
+            ))}
+          </select>
+
+          {(selectedUsinaFilter !== 'TODAS' || selectedUf !== 'TODAS' || selectedDisCo !== 'TODAS' || selectedRazaoFilter !== 'TODAS') && (
+            <button
+              onClick={() => {
+                setSelectedUsinaFilter('TODAS');
+                setSelectedUf('TODAS');
+                setSelectedDisCo('TODAS');
+                setSelectedRazaoFilter('TODAS');
+              }}
+              className="text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200"
+            >
+              Limpar Filtros
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-600 font-medium">
+            Exibindo <strong className="text-slate-900">{filteredUsinas.length}</strong> de {usinas.length} usinas
+          </span>
+          <button
+            onClick={() => exportUsinasToExcel(filteredUsinas)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            <span>Exportar Excel</span>
+          </button>
+        </div>
+      </div>
+
       {/* Grid de Cartões */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredUsinas.map((u, idx) => {
           const cardKey = u.id || `card_${idx}`;
           const usinaTitulo = u.usina || u.nome || `Usina ${idx + 1}`;
           const siglaExibida = u.siglaNova || u.siglaAntiga || u.sigla || '';
-          const data = extractUsinaData(u);
+          const data = parseCardData(u);
 
           return (
             <div 
@@ -280,7 +381,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   {onUpdateUsinas && (
                     <button
                       onClick={() => openEditModal(u)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
                       title="Editar Usina"
                     >
                       <Pencil className="w-4 h-4" />
@@ -304,6 +405,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         <button
                           onClick={() => copyToClipboard(data.cnpj, `cnpj-${cardKey}`)}
                           className="text-amber-800 hover:text-amber-950 cursor-pointer"
+                          title="Copiar CNPJ"
                         >
                           {copiedId === `cnpj-${cardKey}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                         </button>
@@ -312,7 +414,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   </div>
 
                   {/* BLOCO 2: CONCESSIONÁRIA + CONTATO NA LINHA DE BAIXO (Coluna G) */}
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-500 font-semibold">Concessionária:</span>
                       <span className="font-bold text-slate-900 flex items-center gap-1">
@@ -350,7 +452,8 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         </div>
                         <button
                           onClick={() => copyToClipboard(data.emailGestor, `mail-${cardKey}`)}
-                          className="text-sky-700 hover:text-sky-950 p-1"
+                          className="text-sky-700 hover:text-sky-950 p-1 cursor-pointer"
+                          title="Copiar e-mail"
                         >
                           {copiedId === `mail-${cardKey}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
@@ -360,17 +463,18 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                     )}
 
                     {/* Contato do Gestor (Coluna Q) */}
-                    {data.contatoGestor ? (
+                    {data.telGestor ? (
                       <div className="flex items-center justify-between gap-1 bg-white p-2 rounded-lg border border-sky-200">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
                           <span className="font-mono text-xs font-bold text-slate-800 truncate select-all">
-                            {data.contatoGestor}
+                            {data.telGestor}
                           </span>
                         </div>
                         <button
-                          onClick={() => copyToClipboard(data.contatoGestor, `tel-${cardKey}`)}
-                          className="text-slate-600 hover:text-slate-950 p-1"
+                          onClick={() => copyToClipboard(data.telGestor, `tel-${cardKey}`)}
+                          className="text-slate-600 hover:text-slate-950 p-1 cursor-pointer"
+                          title="Copiar telefone/contato"
                         >
                           {copiedId === `tel-${cardKey}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
@@ -387,17 +491,17 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       <span>DADOS CADASTRAIS DA USINA (UG)</span>
                     </div>
                     <div className="grid grid-cols-1 gap-1 text-[11px] font-mono pt-0.5">
-                      {/* Coluna H */}
+                      {/* Cód. Cliente (Coluna H) */}
                       <div className="flex justify-between items-center bg-white px-2.5 py-1 rounded-md border border-slate-200/80">
                         <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">CÓD. CLIENTE:</span>
                         <span className="font-bold text-slate-900">{data.codCliente}</span>
                       </div>
-                      {/* Coluna I */}
+                      {/* Instalação Antiga (Coluna I) */}
                       <div className="flex justify-between items-center bg-white px-2.5 py-1 rounded-md border border-slate-200/80">
                         <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">INSTALAÇÃO ANTIGA (UG):</span>
                         <span className="font-bold text-slate-800">{data.instAntiga}</span>
                       </div>
-                      {/* Coluna J */}
+                      {/* Instalação Nova (Coluna J) */}
                       <div className="flex justify-between items-center bg-amber-50 px-2.5 py-1 rounded-md border border-amber-300">
                         <div className="flex items-center gap-1">
                           <span className="text-amber-900 font-sans text-[10px] uppercase font-bold">INSTALAÇÃO NOVA (UG):</span>
@@ -405,7 +509,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         </div>
                         <span className="font-extrabold text-amber-950">{data.instNova}</span>
                       </div>
-                      {/* Coluna K */}
+                      {/* Medidor (Coluna K) */}
                       <div className="flex justify-between items-center bg-amber-50/50 px-2.5 py-1 rounded-md border border-amber-200/80">
                         <span className="text-amber-800 font-sans text-[10px] uppercase font-bold">MEDIDOR:</span>
                         <span className="font-extrabold text-amber-900">{data.medidor}</span>
@@ -420,11 +524,12 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       <span>ENDEREÇO DA USINA</span>
                     </div>
                     <p className="text-slate-700 text-xs leading-relaxed font-medium">
-                      {data.endereco || 'Endereço não informado'}
+                      {data.endereco}
                     </p>
                     
+                    {/* Ponto de Referência embaixo do endereço */}
                     {data.pontoReferencia && (
-                      <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg p-2 text-xs text-amber-950 flex items-start gap-1.5">
+                      <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg p-2 text-xs text-amber-950 flex items-start gap-1.5 shadow-2xs">
                         <Navigation className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
                         <div>
                           <span className="font-bold text-amber-800 text-[10px] uppercase block tracking-wider">Ponto de Referência:</span>
@@ -446,7 +551,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-extrabold text-slate-900 text-sm">Editar Dados da Usina</h3>
-              <button onClick={() => setEditingUsina(null)} className="text-slate-400 hover:text-slate-700 p-1">
+              <button onClick={() => setEditingUsina(null)} className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
