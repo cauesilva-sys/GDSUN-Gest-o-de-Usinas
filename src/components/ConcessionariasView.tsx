@@ -23,7 +23,8 @@ import {
   X,
   CheckCircle2,
   User,
-  AtSign
+  AtSign,
+  Mail
 } from 'lucide-react';
 
 interface ConcessionariasViewProps {
@@ -67,15 +68,16 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   const [editAgentName, setEditAgentName] = useState<string>('');
   const [editAgentEmail, setEditAgentEmail] = useState<string>('');
   const [editAgentPhone, setEditAgentPhone] = useState<string>('');
+  const [editContatoConcessionaria, setEditContatoConcessionaria] = useState<string>('');
+  const [editEndereco, setEditEndereco] = useState<string>('');
+  const [editPontoReferencia, setEditPontoReferencia] = useState<string>('');
 
   // Count usinas with agent email
   const usinasWithEmailCount = useMemo(() => {
     return (usinas || []).filter((u) => {
       if (!u) return false;
       const email = String(u.emailAgenteRelacionamento || (u as any).emailAgente || '').trim();
-      if (email !== '') return true;
-      const contacts = parseContacts(String(u.contatoDisCo || ''));
-      return contacts.some((c) => c.type === 'email');
+      return email !== '';
     }).length;
   }, [usinas]);
 
@@ -134,7 +136,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     return ['TODAS', ...Array.from(set).sort()];
   }, [usinas]);
 
-  // Filter usinas by Usina, UF, DisCo, Razão Social, Email Status and search query (BLINDADO)
+  // Filter usinas
   const filteredUsinas = useMemo(() => {
     if (!Array.isArray(usinas)) return [];
     const query = String(searchQuery || '').toLowerCase().trim();
@@ -159,9 +161,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
       // Email filter
       const emailAgente = String(item.emailAgenteRelacionamento || (item as any).emailAgente || '').trim();
-      const contatoDisCoStr = String(item.contatoDisCo || '');
-      const contacts = parseContacts(contatoDisCoStr);
-      const hasEmail = Boolean(emailAgente !== '' || contacts.some((c) => c.type === 'email'));
+      const hasEmail = Boolean(emailAgente !== '');
 
       if (selectedEmailFilter === 'COM_EMAIL' && !hasEmail) return false;
       if (selectedEmailFilter === 'SEM_EMAIL' && hasEmail) return false;
@@ -189,6 +189,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       const pontoRef = String(item.pontoReferencia || '').toLowerCase();
       const nomeAgente = String(item.nomeAgenteRelacionamento || (item as any).nomeAgente || '').toLowerCase();
       const endereco = String(item.endereco || '').toLowerCase();
+      const contatoDisCoStr = String(item.contatoDisCo || (item as any).contatoConcessionaria || '').toLowerCase();
 
       return (
         usinaNome.toLowerCase().includes(query) ||
@@ -205,7 +206,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
         pontoRef.includes(query) ||
         nomeAgente.includes(query) ||
         emailAgente.toLowerCase().includes(query) ||
-        contatoDisCoStr.toLowerCase().includes(query) ||
+        contatoDisCoStr.includes(query) ||
         endereco.includes(query)
       );
     });
@@ -220,9 +221,14 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
   const formatFichaUsina = (u: UsinaConcessionaria): string => {
     const nome = u.usina || u.nome || (u as any).usinaNome || 'Usina';
     const sigla = u.siglaNova || u.siglaAntiga || u.sigla || '';
+    const contatoConcessionaria = u.contatoDisCo || (u as any).contatoConcessionaria || 'N/A';
+    const emailAgente = u.emailAgenteRelacionamento || (u as any).emailAgente || 'Não cadastrado';
+    const telAgente = u.telefoneAgenteRelacionamento || u.whatsappDisCo || (u as any).contatoGestor || 'N/A';
+
     const lines = [
       `USINA: ${nome}${sigla ? ` (${sigla})` : ''} - ${u.uf || ''}`,
       `CONCESSIONÁRIA: ${u.concessionaria || (u as any).disco || 'Não informada'}`,
+      `CONTATO CONCESSIONÁRIA: ${contatoConcessionaria}`,
       '',
       `RAZÃO SOCIAL & CNPJ`,
       `Razão Social Cliente: ${u.razaoSocialCliente || u.razaoSocial || 'Pendente'}`,
@@ -234,10 +240,10 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       `Código da Instalação Nova (UG): ${u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A' ? u.codigoInstalacaoNovaUG : 'N/A'}`,
       `Medidor: ${u.medidor || 'N/A'}`,
       '',
-      `AGENTE DE RELACIONAMENTO & CONTATOS`,
-      `Agente de Relacionamento: ${u.nomeAgenteRelacionamento || (u as any).nomeAgente || 'Não especificado'}`,
-      `E-mail do Agente: ${u.emailAgenteRelacionamento || (u as any).emailAgente || 'Não cadastrado'}`,
-      `Contato / Central DisCo: ${u.contatoDisCo || 'N/A'}${u.whatsappDisCo ? `\nWhatsApp DisCo: ${u.whatsappDisCo}` : ''}`,
+      `AGENTE / GESTOR DE RELACIONAMENTO`,
+      `Gestor: ${u.nomeAgenteRelacionamento || (u as any).nomeAgente || 'Não especificado'}`,
+      `E-mail: ${emailAgente}`,
+      `Contato / Tel: ${telAgente}`,
       '',
       `ENDEREÇO DA USINA`,
       `Endereço: ${u.endereco || 'Endereço não informado'}`
@@ -309,15 +315,11 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
     setEditCodigoInstalacaoUG(u.codigoInstalacaoUG && u.codigoInstalacaoUG !== 'N/A' ? u.codigoInstalacaoUG : '');
     setEditMedidor(u.medidor && u.medidor !== 'N/A' ? u.medidor : '');
     setEditAgentName(u.nomeAgenteRelacionamento || (u as any).nomeAgente || '');
-    
-    let emailInitial = u.emailAgenteRelacionamento || (u as any).emailAgente || '';
-    if (!emailInitial) {
-      const contacts = parseContacts(u.contatoDisCo || '');
-      const emailContact = contacts.find((c) => c.type === 'email');
-      if (emailContact) emailInitial = emailContact.value;
-    }
-    setEditAgentEmail(emailInitial);
-    setEditAgentPhone(u.whatsappDisCo || u.telefoneAgenteRelacionamento || '');
+    setEditAgentEmail(u.emailAgenteRelacionamento || (u as any).emailAgente || '');
+    setEditAgentPhone(u.telefoneAgenteRelacionamento || u.whatsappDisCo || (u as any).contatoGestor || '');
+    setEditContatoConcessionaria(u.contatoDisCo || (u as any).contatoConcessionaria || '');
+    setEditEndereco(u.endereco || '');
+    setEditPontoReferencia(u.pontoReferencia || '');
   };
 
   const handleSaveSingleUsina = (e: React.FormEvent) => {
@@ -326,15 +328,6 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
     const updated = usinas.map((u) => {
       if (u.id === editingUsina.id) {
-        let finalContato = u.contatoDisCo || '';
-        const cleanEmail = editAgentEmail.trim();
-
-        if (cleanEmail) {
-          if (!finalContato.toLowerCase().includes(cleanEmail.toLowerCase())) {
-            finalContato = finalContato ? `${cleanEmail} / ${finalContato}` : cleanEmail;
-          }
-        }
-
         const novaUG = editCodigoInstalacaoNovaUG.trim();
         const antigaUG = editCodigoInstalacaoAntigaUG.trim();
 
@@ -350,10 +343,12 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
           codigoInstalacaoUG: novaUG || antigaUG || u.codigoInstalacaoUG,
           medidor: editMedidor.trim() || u.medidor,
           nomeAgenteRelacionamento: editAgentName.trim() || undefined,
-          emailAgenteRelacionamento: cleanEmail || undefined,
+          emailAgenteRelacionamento: editAgentEmail.trim() || undefined,
           whatsappDisCo: editAgentPhone.trim() || u.whatsappDisCo,
           telefoneAgenteRelacionamento: editAgentPhone.trim() || undefined,
-          contatoDisCo: finalContato
+          contatoDisCo: editContatoConcessionaria.trim() || u.contatoDisCo,
+          endereco: editEndereco.trim() || u.endereco,
+          pontoReferencia: editPontoReferencia.trim() || u.pontoReferencia
         };
       }
       return u;
@@ -510,12 +505,23 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredUsinas.map((u, idx) => {
-            const contacts = parseContacts(String(u.contatoDisCo || ''));
-            const emailContact = contacts.find((c) => c.type === 'email');
-            const primaryEmail = u.emailAgenteRelacionamento || (u as any).emailAgente || emailContact?.value || '';
             const usinaTitulo = u.usina || u.nome || (u as any).usinaNome || `Usina ${idx + 1}`;
             const siglaExibida = u.siglaNova || u.siglaAntiga || u.sigla || '';
             const cardKey = u.id || `card_${idx}`;
+
+            // Contato da concessionária (Coluna G)
+            const contatoConcessionaria = u.contatoDisCo || (u as any).contatoConcessionaria || '';
+
+            // Dados do Agente / Gestor (Colunas P e Q)
+            const nomeGestor = u.nomeAgenteRelacionamento || (u as any).nomeAgente || 'Gestor de Relacionamento';
+            const emailGestor = u.emailAgenteRelacionamento || (u as any).emailAgente || '';
+            const contatoGestor = u.telefoneAgenteRelacionamento || u.whatsappDisCo || (u as any).contatoGestor || '';
+
+            // Dados Cadastrais (Colunas H, I, J, K)
+            const codCliente = u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A';
+            const instAntiga = u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' ? u.codigoInstalacaoAntigaUG : (u.codigoInstalacaoUG || 'N/A');
+            const instNova = u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A' ? u.codigoInstalacaoNovaUG : 'N/A';
+            const medidor = u.medidor && u.medidor !== 'N/A' ? u.medidor : 'N/A';
 
             return (
               <div 
@@ -523,6 +529,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                 className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 hover:border-amber-300 group"
               >
                 <div>
+                  {/* Topo do Card: UF, Nome, Sigla e Ações */}
                   <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
                     <div>
                       <div className="flex items-center gap-2">
@@ -554,7 +561,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   </div>
 
                   <div className="pt-3 space-y-3">
-                    {/* Razão Social & CNPJ */}
+                    {/* 1. Razão Social & CNPJ */}
                     <div className="bg-amber-50/70 rounded-xl p-3 border border-amber-200/90 space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="text-[10px] text-amber-800 uppercase font-bold tracking-wider flex items-center gap-1">
@@ -565,7 +572,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                           <button
                             onClick={() => openEditModal(u)}
                             className="text-slate-500 hover:text-slate-800 p-0.5 rounded hover:bg-amber-100/80 transition-colors cursor-pointer"
-                            title="Editar Razão Social e CNPJ"
+                            title="Editar dados da usina"
                           >
                             <Pencil className="w-3 h-3" />
                           </button>
@@ -592,47 +599,48 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Concessionária */}
-                    <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-slate-500 font-semibold">Concessionária:</span>
-                      <span className="font-bold text-slate-900 flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                        <span>{u.concessionaria || (u as any).disco || (u as any).distribuidora || 'Não informada'}</span>
-                      </span>
+                    {/* 2. Concessionária + Contato na linha de baixo (Coluna G) */}
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-500 font-semibold">Concessionária:</span>
+                        <span className="font-bold text-slate-900 flex items-center gap-1">
+                          <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                          <span>{u.concessionaria || (u as any).disco || (u as any).distribuidora || 'Não informada'}</span>
+                        </span>
+                      </div>
+                      {contatoConcessionaria && (
+                        <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-slate-200/60 font-mono">
+                          <span className="text-slate-400 font-sans text-[10px] uppercase font-semibold">Contato Concessionária:</span>
+                          <span className="font-bold text-slate-800">{contatoConcessionaria}</span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Agente de Relacionamento & E-mail */}
-                    <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3 space-y-1.5">
+                    {/* 3. Agente de Relacionamento (Nome, Email [Col P] e Contato [Col Q]) */}
+                    <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] uppercase tracking-wider font-extrabold text-sky-800 flex items-center gap-1">
                           <User className="w-3 h-3 text-sky-600" />
                           <span>Agente de Relacionamento</span>
                         </span>
-                        {onUpdateUsinas && (
-                          <button
-                            onClick={() => openEditModal(u)}
-                            className="text-slate-400 hover:text-slate-700 p-0.5 rounded hover:bg-sky-100 transition-colors"
-                            title="Editar agente e e-mail"
-                          >
-                            <Pencil className="w-3 h-3" />
-                          </button>
-                        )}
                       </div>
 
-                      {(u.nomeAgenteRelacionamento || (u as any).nomeAgente) && (
-                        <div className="font-bold text-slate-900 text-xs">
-                          {u.nomeAgenteRelacionamento || (u as any).nomeAgente}
-                        </div>
-                      )}
+                      <div className="font-bold text-slate-900 text-xs">
+                        {nomeGestor}
+                      </div>
 
-                      {primaryEmail ? (
+                      {/* E-mail do Gestor (Coluna P) */}
+                      {emailGestor ? (
                         <div className="flex items-center justify-between gap-1 bg-white p-2 rounded-lg border border-sky-200">
-                          <div className="font-mono text-xs font-bold text-sky-950 truncate select-all">
-                            {primaryEmail}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Mail className="w-3 h-3 text-sky-600 shrink-0" />
+                            <span className="font-mono text-xs font-bold text-sky-950 truncate select-all">
+                              {emailGestor}
+                            </span>
                           </div>
                           <button
-                            onClick={() => copyToClipboard(primaryEmail, `card-email-${cardKey}`)}
-                            className="text-sky-700 hover:text-sky-950 p-1 rounded hover:bg-sky-50 transition-colors shrink-0"
+                            onClick={() => copyToClipboard(emailGestor, `card-email-${cardKey}`)}
+                            className="text-sky-700 hover:text-sky-950 p-1 rounded hover:bg-sky-50 transition-colors shrink-0 cursor-pointer"
                             title="Copiar e-mail"
                           >
                             {copiedId === `card-email-${cardKey}` ? (
@@ -643,35 +651,40 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                           </button>
                         </div>
                       ) : (
-                        <div className="text-slate-400 italic text-xs">
-                          E-mail do agente pendente
+                        <div className="text-slate-400 italic text-[11px]">
+                          E-mail do gestor não informado
                         </div>
                       )}
 
-                      {contacts.filter(c => c.type !== 'email').length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-1">
-                          {contacts.filter(c => c.type !== 'email').map((c, i) => (
-                            <a
-                              key={i}
-                              href={c.url || '#'}
-                              target={c.type === 'whatsapp' ? '_blank' : '_self'}
-                              rel="noopener noreferrer"
-                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border transition-colors ${
-                                c.type === 'whatsapp'
-                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
-                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              {c.type === 'whatsapp' && <MessageSquareCode className="w-3 h-3 text-emerald-600 shrink-0" />}
-                              {c.type === 'phone' && <Phone className="w-3 h-3 text-slate-500 shrink-0" />}
-                              <span>{c.label}</span>
-                            </a>
-                          ))}
+                      {/* Contato do Gestor (Coluna Q) */}
+                      {contatoGestor ? (
+                        <div className="flex items-center justify-between gap-1 bg-white p-2 rounded-lg border border-sky-200">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span className="font-mono text-xs font-bold text-slate-800 truncate select-all">
+                              {contatoGestor}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => copyToClipboard(contatoGestor, `card-tel-${cardKey}`)}
+                            className="text-slate-600 hover:text-slate-950 p-1 rounded hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
+                            title="Copiar telefone/contato"
+                          >
+                            {copiedId === `card-tel-${cardKey}` ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-slate-400 italic text-[11px]">
+                          Contato do gestor não informado
                         </div>
                       )}
                     </div>
 
-                    {/* Dados Cadastrais */}
+                    {/* 4. Dados Cadastrais da Usina (UG) */}
                     <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 space-y-1.5">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center justify-between">
                         <div className="flex items-center gap-1">
@@ -680,29 +693,33 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                         </div>
                       </div>
                       <div className="grid grid-cols-1 gap-1 text-[11px] font-mono pt-0.5">
+                        {/* Coluna H */}
                         <div className="flex justify-between items-center bg-white px-2.5 py-1 rounded-md border border-slate-200/80">
                           <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">Cód. Cliente:</span>
-                          <span className="font-bold text-slate-900">{u.codigoCliente && u.codigoCliente !== 'N/A' ? u.codigoCliente : 'N/A'}</span>
+                          <span className="font-bold text-slate-900">{codCliente}</span>
                         </div>
+                        {/* Coluna I */}
                         <div className="flex justify-between items-center bg-white px-2.5 py-1 rounded-md border border-slate-200/80">
                           <span className="text-slate-500 font-sans text-[10px] uppercase font-bold">Instalação Antiga (UG):</span>
-                          <span className="font-bold text-slate-800">{u.codigoInstalacaoAntigaUG && u.codigoInstalacaoAntigaUG !== 'N/A' ? u.codigoInstalacaoAntigaUG : (u.codigoInstalacaoUG || 'N/A')}</span>
+                          <span className="font-bold text-slate-800">{instAntiga}</span>
                         </div>
+                        {/* Coluna J */}
                         <div className="flex justify-between items-center bg-amber-50 px-2.5 py-1 rounded-md border border-amber-300 shadow-2xs">
                           <div className="flex items-center gap-1">
                             <span className="text-amber-900 font-sans text-[10px] uppercase font-bold">Instalação Nova (UG):</span>
                             <span className="text-[8px] bg-amber-600 text-white font-extrabold px-1 py-0.2 rounded uppercase">Nova</span>
                           </div>
-                          <span className="font-extrabold text-amber-950">{u.codigoInstalacaoNovaUG && u.codigoInstalacaoNovaUG !== 'N/A' ? u.codigoInstalacaoNovaUG : 'N/A'}</span>
+                          <span className="font-extrabold text-amber-950">{instNova}</span>
                         </div>
+                        {/* Coluna K */}
                         <div className="flex justify-between items-center bg-amber-50/50 px-2.5 py-1 rounded-md border border-amber-200/80">
                           <span className="text-amber-800 font-sans text-[10px] uppercase font-bold">Medidor:</span>
-                          <span className="font-extrabold text-amber-900">{u.medidor || 'N/A'}</span>
+                          <span className="font-extrabold text-amber-900">{medidor}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Endereço */}
+                    {/* 5. Endereço da Usina (Coluna R) + Ponto de Referência (Coluna S) */}
                     <div className="space-y-1.5 pt-1 border-t border-slate-100">
                       <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-sky-600" />
@@ -711,6 +728,8 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                       <p className="text-slate-700 text-xs leading-relaxed font-medium">
                         {u.endereco || 'Endereço não informado'}
                       </p>
+                      
+                      {/* Ponto de Referência embaixo do endereço */}
                       {u.pontoReferencia && u.pontoReferencia.trim() !== '' && u.pontoReferencia.toUpperCase() !== 'N/A' && (
                         <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg p-2.5 text-xs text-amber-950 leading-snug flex items-start gap-2 shadow-2xs">
                           <Navigation className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
@@ -746,12 +765,12 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       {/* Modal de Edição */}
       {editingUsina && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Pencil className="w-4 h-4 text-amber-600" />
                 <h3 className="font-extrabold text-slate-900 text-sm">
-                  Editar Razão Social, CNPJ e Contatos da Usina
+                  Editar Dados da Usina
                 </h3>
               </div>
               <button
@@ -798,10 +817,22 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 block text-xs">
+                  Contato Concessionária (Coluna G):
+                </label>
+                <input
+                  type="text"
+                  value={editContatoConcessionaria}
+                  onChange={(e) => setEditContatoConcessionaria(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:bg-white"
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 block text-[11px]">
-                    Código do Cliente:
+                    Código do Cliente (Col H):
                   </label>
                   <input
                     type="text"
@@ -812,7 +843,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                 </div>
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 block text-[11px]">
-                    Medidor:
+                    Medidor (Col K):
                   </label>
                   <input
                     type="text"
@@ -823,7 +854,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                 </div>
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 block text-[11px]">
-                    Código Instalação Antiga (UG):
+                    Instalação Antiga UG (Col I):
                   </label>
                   <input
                     type="text"
@@ -833,9 +864,8 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-bold text-amber-900 block text-[11px] flex items-center gap-1">
-                    <span>Código Instalação Nova (UG):</span>
-                    <span className="text-[8px] bg-amber-600 text-white font-extrabold px-1 rounded uppercase">Nova</span>
+                  <label className="font-bold text-amber-900 block text-[11px]">
+                    Instalação Nova UG (Col J):
                   </label>
                   <input
                     type="text"
@@ -848,7 +878,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-800 block">
-                  Nome do Agente de Relacionamento DisCo:
+                  Nome do Gestor de Relacionamento:
                 </label>
                 <input
                   type="text"
@@ -860,7 +890,7 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-800 block">
-                  E-mail do Agente de Relacionamento:
+                  E-mail do Gestor (Coluna P):
                 </label>
                 <input
                   type="email"
@@ -872,12 +902,36 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-800 block">
-                  Telefone / WhatsApp DisCo:
+                  Contato / Telefone do Gestor (Coluna Q):
                 </label>
                 <input
                   type="text"
                   value={editAgentPhone}
                   onChange={(e) => setEditAgentPhone(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 block">
+                  Endereço da Usina (Coluna R):
+                </label>
+                <input
+                  type="text"
+                  value={editEndereco}
+                  onChange={(e) => setEditEndereco(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 block">
+                  Ponto de Referência (Coluna S):
+                </label>
+                <input
+                  type="text"
+                  value={editPontoReferencia}
+                  onChange={(e) => setEditPontoReferencia(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:bg-white"
                 />
               </div>
