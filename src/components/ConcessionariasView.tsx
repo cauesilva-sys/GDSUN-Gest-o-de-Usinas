@@ -139,6 +139,9 @@ export const ConcessionariasView: React.FC<ConcessionariasViewProps> = ({
       if (!query) return true;
 
       return (
+        item.sigla?.toLowerCase().includes(query) ||
+        item.siglaNova?.toLowerCase().includes(query) ||
+        item.siglaAntiga?.toLowerCase().includes(query) ||
         item.usina.toLowerCase().includes(query) ||
         item.razaoSocial.toLowerCase().includes(query) ||
         item.cnpj.includes(query) ||
