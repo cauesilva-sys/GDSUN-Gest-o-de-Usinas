@@ -168,7 +168,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar usina, CNPJ, razão, 0800..."
+                placeholder="Buscar usina, siglas, CNPJ, razão, 0800..."
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-7 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all font-medium"
               />
               {searchQuery && (
